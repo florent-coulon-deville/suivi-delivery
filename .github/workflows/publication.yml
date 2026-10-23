@@ -1,8 +1,9 @@
 # Publication des images Docker dans le registre de GitHub (ghcr.io), à chaque nouvelle version.
 # Le chart Helm n'est pas publié : on l'installe depuis le dépôt Git (voir docs/deploiement.md).
 #
-# Se lance quand on pousse une étiquette Git de version, par exemple v0.3.1 (voir docs/ci.md,
-# « Sortir une version ») :
+# Lancée par le workflow « Version » (release.yml) juste après que release-please a créé une
+# version (étiquette vX.Y.Z), ou à la main pour une étiquette existante (onglet Actions, « Run
+# workflow », par exemple pour relancer une publication ratée). Voir docs/ci.md § 5 :
 #   1. vérifie que la version est unique (backend, frontend, chart) et égale à l'étiquette ;
 #   2. refuse de republier une version déjà publiée (une image publiée ne change jamais) ;
 #   3. fabrique chaque image deux fois, chacune sur une machine GitHub du bon processeur
@@ -19,16 +20,28 @@
 # Actions figées par leur empreinte de commit (version en commentaire). Voir docs/ci.md.
 name: Publication des images
 
+# Pas de déclenchement sur l'étiquette elle-même : posée par la CI (jeton GITHUB_TOKEN), elle ne
+# lancerait aucun workflow. release.yml appelle donc directement ce workflow.
 on:
-  push:
-    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+  workflow_call:
+    inputs:
+      tag:
+        description: Étiquette de la version à publier (vX.Y.Z)
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Étiquette de la version à publier (vX.Y.Z)
+        type: string
+        required: true
 
 permissions:
   contents: read
 
 # Deux publications de la même étiquette ne tournent jamais en même temps.
 concurrency:
-  group: publication-${{ github.ref }}
+  group: publication-${{ inputs.tag }}
   cancel-in-progress: false
 
 jobs:
@@ -42,23 +55,29 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       registry: ${{ steps.version.outputs.registry }}
+      revision: ${{ steps.version.outputs.revision }}
     steps:
       - name: Checkout Version 7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          ref: ${{ inputs.tag }}
           persist-credentials: false
       - name: Version unique, égale à l'étiquette
         id: version
+        env:
+          TAG: ${{ inputs.tag }}
         run: |
           python3 cicd/check_versions.py
           VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('backend/pyproject.toml', 'rb'))['project']['version'])")
-          if [[ "v$VERSION" != "$GITHUB_REF_NAME" ]]; then
-            echo "::error::L'étiquette $GITHUB_REF_NAME ne correspond pas à la version de l'application ($VERSION)."
+          if [[ "v$VERSION" != "$TAG" ]]; then
+            echo "::error::L'étiquette $TAG ne correspond pas à la version de l'application ($VERSION)."
             exit 1
           fi
           # Le registre n'accepte que des minuscules dans les noms d'images.
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "registry=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+          # Commit de l'étiquette, noté dans les images (pas forcément celui qui a lancé le workflow).
+          echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: Version pas encore publiée
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -95,6 +114,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          ref: ${{ inputs.tag }}
           persist-credentials: false
       # Chaque Dockerfile récupère lui-même ce dont il a besoin (dépendances, site construit,
       # connecteur PostgreSQL) : rien à préparer avant la fabrication.
@@ -122,7 +142,7 @@ jobs:
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.version=${{ needs.check.outputs.version }}
-            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.revision=${{ needs.check.outputs.revision }}
             org.opencontainers.image.title=suivi-delivery-${{ matrix.part }}
           cache-from: type=gha,scope=${{ matrix.part }}  # cache des vérifications (ci-docker.yml, amd64)
 

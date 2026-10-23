@@ -5,6 +5,12 @@
 - **`main`** contient la version validée. On ne travaille jamais directement dessus.
 - Chaque chantier a **sa branche** (`feat/docker`, `feat/nextjs`…), puis une **pull request (PR)** sur GitHub. La PR est relue, vérifiée par SonarCloud, puis fusionnée dans `main`.
 - Les PR sont fusionnées avec un **commit de fusion** (« Merge pull request »). Git sait donc reconnaître une branche déjà fusionnée : c'est ce qui permet le ménage ci-dessous.
+- **Messages de commit : Conventional Commits**, car release-please en déduit le prochain numéro de version ([ci.md § 5](ci.md#sortir-une-version--release-please)). Un type, deux-points, puis le texte en français : `feat: export Excel` (nouveauté), `fix(frontend): menu Saisie` (correction), `docs: …`, `ci: …`, `refactor: …`, `chore: …` ; `feat!: …` si l'existant casse. Vaut aussi pour les petites corrections faites directement sur `main`. La CI refuse une PR dont un commit ne suit pas la règle. Pour corriger les messages d'une branche :
+
+  ```bash
+  git rebase -i origin/main          # remplacer « pick » par « reword » devant chaque commit à renommer
+  git push --force-with-lease
+  ```
 
 ## 2. Après la fusion d'une PR : purger les branches locales
 

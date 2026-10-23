@@ -1,0 +1,56 @@
+# Versions de l'application, préparées par release-please (outil de Google), à chaque fusion
+# sur main. Voir docs/ci.md § 5 :
+#   1. release-please lit les titres des commits depuis la dernière version (Conventional
+#      Commits : feat:, fix:…) et ouvre ou met à jour une PR « chore: version X.Y.Z » qui change
+#      le numéro partout (release-please-config.json) et complète CHANGELOG.md ;
+#   2. quand on fusionne cette PR, il pose l'étiquette vX.Y.Z et crée la Release GitHub ;
+#   3. la publication des images (publication.yml) est alors lancée, dans ce même workflow :
+#      une étiquette posée avec le jeton GITHUB_TOKEN ne déclenche aucun autre workflow.
+#
+# Réglage du dépôt requis : Settings → Actions → General → « Allow GitHub Actions to create and
+# approve pull requests ». Actions figées par leur empreinte de commit (version en commentaire).
+name: Version
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Une seule exécution à la fois, jamais interrompue (elle peut poser une étiquette).
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Préparer ou créer la version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write       # étiquette, Release GitHub, branche de la PR de version
+      pull-requests: write  # PR de version
+      issues: write         # étiquettes (labels) de la PR de version
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - name: release-please
+        id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7  # v5.0.0
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  publication:
+    name: Publier les images
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    permissions:
+      contents: read
+      packages: write  # publier dans ghcr.io
+    uses: ./.github/workflows/publication.yml
+    with:
+      tag: ${{ needs.release-please.outputs.tag_name }}
+    secrets: inherit  # DHI_USERNAME, DHI_TOKEN (images de base durcies)
