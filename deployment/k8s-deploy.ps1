@@ -30,6 +30,9 @@
 #   kind (contexte « kind-<nom> »)  le cluster est créé s'il n'existe pas ; les images sont
 #                                   fabriquées sur le poste et chargées directement dans kind
 #                                   (pas de registre) : on essaie le code tel qu'il est.
+#                                   Connexion à dhi.io (images de base) : DHI_USERNAME et DHI_TOKEN
+#                                   de deployment/docker.env s'ils sont remplis, sinon un
+#                                   « docker login dhi.io » (ou podman) déjà fait.
 #                                   Avec Docker (défaut) ou Podman (--podman) : un cluster kind
 #                                   créé avec l'un n'est pas vu par l'autre.
 #   tout autre cluster              le script demande confirmation ; le cluster télécharge les
@@ -59,6 +62,25 @@ function step($message) { Write-Host "`n==> $message" -ForegroundColor Blue }
 function ok($message) { Write-Host "✔ $message" -ForegroundColor Green }
 function info($message) { Write-Host "! $message" -ForegroundColor Yellow }
 function fail($message) { Write-Host "✘ $message" -ForegroundColor Red; exit 1 }
+
+# Connexion à dhi.io (images de base durcies) avant de fabriquer, avec DHI_USERNAME et DHI_TOKEN
+# de deployment/docker.env (le fichier de docker-deploy.ps1 ; voir deployment/docker.example.env).
+function login_dhi {
+    $settings = "deployment/docker.env"; $user = ""; $token = ""
+    if (Test-Path $settings) {
+        $lines = Get-Content $settings
+        $user = (@($lines | Where-Object { $_ -match "^DHI_USERNAME=" })[-1] ?? "") -replace "^DHI_USERNAME=", ""
+        $token = (@($lines | Where-Object { $_ -match "^DHI_TOKEN=" })[-1] ?? "") -replace "^DHI_TOKEN=", ""
+    }
+    if (-not $user -or -not $token) {
+        info "DHI_USERNAME et DHI_TOKEN absents de $settings : on compte sur un « $ENGINE login dhi.io » déjà fait"
+        return
+    }
+    # Jeton passé par l'entrée standard : jamais sur la ligne de commande, ni à l'écran.
+    $token | & $ENGINE login dhi.io --username $user --password-stdin > $null
+    if ($LASTEXITCODE -ne 0) { fail "Connexion à dhi.io refusée pour $user : vérifier DHI_USERNAME et DHI_TOKEN dans $settings." }
+    ok "Connecté à dhi.io ($user)"
+}
 
 $usage = "Usage : .\deployment\k8s-deploy.ps1 [--context <nom>] [--namespace <nom>] [--values <fichier>]… [--registry <adresse>] [--yes] [--reset] [--podman]"
 
@@ -179,6 +201,7 @@ step "Images (version $VERSION)"
 $IMAGES = @()
 if ($KIND) {
     # Fabriquées sur le poste, puis copiées directement dans kind : pas besoin de registre.
+    login_dhi
     foreach ($part in $FOLDERS.Keys) {
         $image = "suivi-delivery-${part}:$VERSION"
         if ($ENGINE -eq "podman") {
@@ -188,7 +211,7 @@ if ($KIND) {
             # (Podman nommerait sinon l'image localhost/…, que le cluster ne trouverait pas).
             $complete = "docker.io/library/$image"
             podman build -t $complete $FOLDERS[$part]
-            if ($LASTEXITCODE -ne 0) { fail "La fabrication de l'image $part a échoué." }
+            if ($LASTEXITCODE -ne 0) { fail "La fabrication de l'image $part a échoué (image de base refusée : connexion à dhi.io)." }
             $archive = Join-Path ([IO.Path]::GetTempPath()) "suivi-delivery-$part-$PID.tar"
             try {
                 podman save -o $archive $complete
@@ -200,7 +223,7 @@ if ($KIND) {
             }
         } else {
             docker build -t $image $FOLDERS[$part]
-            if ($LASTEXITCODE -ne 0) { fail "La fabrication de l'image $part a échoué." }
+            if ($LASTEXITCODE -ne 0) { fail "La fabrication de l'image $part a échoué (image de base refusée : connexion à dhi.io)." }
             kind load docker-image $image --name $CLUSTER_KIND
             if ($LASTEXITCODE -ne 0) { fail "Le chargement de l'image $image dans kind a échoué." }
         }

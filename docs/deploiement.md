@@ -144,7 +144,7 @@ Pour le déploiement, le site est construit (`npm run build`) en un **serveur au
 
 **Règle : des Docker Hardened Images quand elles existent, sinon uniquement des images publiées par l'éditeur du logiciel.**
 
-Les **Docker Hardened Images** (registre `dhi.io`, publiées par Docker) sont réduites au strict nécessaire : pas de shell ni de gestionnaire de paquets dans l'image d'exécution, utilisateur non root, presque aucune faille connue, signées et accompagnées de la liste de leur contenu. Une variante `-dev` (avec shell) sert à l'étape de fabrication. Il faut **se connecter une fois** avec un compte Docker (identifiant Docker Hub, jeton d'accès personnel en lecture seule comme mot de passe) : `docker login dhi.io` (ou `podman login dhi.io`). Pour entrer dans un conteneur sans shell : `docker debug <conteneur>`.
+Les **Docker Hardened Images** (registre `dhi.io`, publiées par Docker) sont réduites au strict nécessaire : pas de shell ni de gestionnaire de paquets dans l'image d'exécution, utilisateur non root, presque aucune faille connue, signées et accompagnées de la liste de leur contenu. Une variante `-dev` (avec shell) sert à l'étape de fabrication. Il faut **se connecter** avec un compte Docker (identifiant Docker Hub, jeton d'accès personnel en lecture seule comme mot de passe) : soit une fois à la main, `docker login dhi.io` (ou `podman login dhi.io`), soit en remplissant `DHI_USERNAME` et `DHI_TOKEN` dans `deployment/docker.env` : les scripts `docker-deploy` et `k8s-deploy` se connectent alors eux-mêmes avant de fabriquer les images (§ 7). Pour entrer dans un conteneur sans shell : `docker debug <conteneur>`.
 
 | Usage | Image | Éditeur |
 | --- | --- | --- |
@@ -192,27 +192,28 @@ Cinq modules tournent dans Docker, chacun dans son conteneur :
 
 **Un seul fichier de réglages : `deployment/docker.env`.** Il n'est pas suivi par Git : chacun a le sien.
 
-- Chaque module a son **modèle**, `<module>/docker.example.env`, qui décrit ses réglages.
-- `docker.env` est fait de ces cinq modèles mis bout à bout.
+- Chaque module a son **modèle**, `<module>/docker.example.env`, qui décrit ses réglages ; le script a le sien, `deployment/docker.example.env` (connexion à dhi.io).
+- `docker.env` est fait de ces six modèles mis bout à bout.
 - Le script le crée tout seul s'il n'existe pas, avec des mots de passe et des clés tirés au hasard.
 
 Pour le créer à la main (il faut ensuite remplir les secrets vides) :
 
 ```bash
-cat postgres/docker.example.env liquibase/docker.example.env keycloak/docker.example.env backend/docker.example.env frontend/docker.example.env > deployment/docker.env
+cat deployment/docker.example.env postgres/docker.example.env liquibase/docker.example.env keycloak/docker.example.env backend/docker.example.env frontend/docker.example.env > deployment/docker.env
 ```
 
 **Si `docker.env` n'a pas tous les réglages attendus**, le script le dit et s'arrête. Mettre le fichier de côté (`mv deployment/docker.env deployment/docker.env.old`), puis relancer avec `--reset` : le script en recrée un, et la base repart de zéro.
 
 | Partie | Réglages |
 | --- | --- |
+| Le script | `DHI_USERNAME`, `DHI_TOKEN` : connexion à dhi.io, d'où viennent les images de base (compte Docker, jeton en lecture seule). Remplis : `docker-deploy` et `k8s-deploy` se connectent (`docker login`, ou `podman login` avec `--podman`, jeton passé par l'entrée standard) avant de fabriquer. Vides : ils comptent sur un `docker login dhi.io` déjà fait. **Jamais transmis aux conteneurs.** Facultatifs : un `docker.env` plus ancien, sans ces lignes, reste valable (les ajouter à la main) |
 | PostgreSQL | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` : la base de référence |
 | Liquibase | `LIQUIBASE_COMMAND_URL` (adresse JDBC de la base, avec le schéma de nos tables : `jdbc:postgresql://suivi-delivery-postgres-local:5432/suivi_delivery?currentSchema=suivi_delivery`), `LIQUIBASE_COMMAND_USERNAME`, `LIQUIBASE_COMMAND_PASSWORD` |
 | Keycloak | sa base (`KC_DB_URL`, `KC_DB_USERNAME=keycloak`, `KC_DB_PASSWORD`), son adresse publique (`KC_HOSTNAME=http://localhost:8080/auth`, sous l'interface), sa console (`KC_HOSTNAME_ADMIN`, `KC_BOOTSTRAP_ADMIN_*`), et ce qu'il importe au premier démarrage : `APP_ADMIN_PASSWORD` (compte `admin` de l'outil), `APP_KEYCLOAK_CLIENT_SECRET` (lue aussi par l'API) |
 | Backend | `APP_HOST=0.0.0.0`, `APP_PORT=8000`, la base (`APP_DB_HOST=suivi-delivery-postgres-local`, `APP_DB_PORT`, `APP_DB_NAME`, `APP_DB_SCHEMA`, `APP_DB_USER`, `APP_DB_PASSWORD`), `APP_LOG_LEVEL`, `APP_DOCS`, la connexion (`APP_KEYCLOAK_URL=http://suivi-delivery-keycloak-local:8080/auth`, `APP_FRONTEND_URL=http://localhost:8080`, lue aussi par le frontend et Keycloak, `APP_API_URL=http://localhost:8000`) |
 | Frontend | `PORT=8080`, `API_URL=http://suivi-delivery-backend-local:8000`, `KEYCLOAK_URL=http://suivi-delivery-keycloak-local:8080/auth`, `INSTANCE_NAME=local`, `INSTANCE_COLOR` (facultatif) |
 
-Chaque conteneur reçoit tout le fichier (`--env-file deployment/docker.env`), sans aucun `-e`. Il y trouve ses réglages, et ignore les autres.
+Chaque conteneur reçoit tout le fichier, sans aucun `-e`, **sauf `DHI_USERNAME` et `DHI_TOKEN`** : le script lui donne une copie de `docker.env` sans ces deux lignes (fichier provisoire, lisible par vous seul, effacé à la fin du script), pour qu'aucun jeton n'entre dans un conteneur. Il y trouve ses réglages, et ignore les autres. Pour les commandes à retaper à la main (ci-dessous), même précaution : `grep -vE '^DHI_(USERNAME|TOKEN)=' deployment/docker.env > /tmp/conteneurs.env`, puis `--env-file /tmp/conteneurs.env`.
 
 La base apparaît donc plusieurs fois, sous les noms qu'attend chaque programme (`POSTGRES_*`, `LIQUIBASE_COMMAND_*`, `KC_DB_*`, `APP_DB_*`). **Le script vérifie que tout se correspond** et s'arrête avec un message sinon :
 

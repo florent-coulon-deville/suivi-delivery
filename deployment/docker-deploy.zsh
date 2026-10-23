@@ -34,7 +34,9 @@
 #
 # Réglages : UN seul fichier, deployment/docker.env (non suivi par Git), reçu par chaque
 # conteneur. S'il n'existe pas, le script le crée en mettant bout à bout les modèles de chaque
-# module (<module>/docker.example.env). Chaque conteneur y trouve tous ses réglages (pas de
+# module (<module>/docker.example.env), précédés de celui du script (deployment/docker.example.env :
+# DHI_USERNAME, DHI_TOKEN, la connexion à dhi.io, d'où viennent les images de base ; remplis, le
+# script se connecte avant de fabriquer ; ces lignes ne sont jamais transmises aux conteneurs). Chaque conteneur y trouve tous ses réglages (pas de
 # « -e »). La base y figure pour PostgreSQL (POSTGRES_*), Liquibase (LIQUIBASE_COMMAND_*),
 # Keycloak (KC_DB_*) et l'API (APP_DB_*) : le script vérifie qu'ils désignent la même base, et
 # que Keycloak est bien servi sous l'adresse de l'interface ; il s'arrête sinon.
@@ -59,8 +61,11 @@ PORT_FRONTEND=8080
 
 # Le fichier des réglages, et les modèles qui servent à le créer (dans cet ordre).
 SETTINGS=deployment/docker.env
-TEMPLATES=(postgres/docker.example.env liquibase/docker.example.env keycloak/docker.example.env
-         backend/docker.example.env frontend/docker.example.env)
+TEMPLATES=(deployment/docker.example.env postgres/docker.example.env liquibase/docker.example.env
+         keycloak/docker.example.env backend/docker.example.env frontend/docker.example.env)
+# Réglages du script lui-même (connexion à dhi.io) : retirés de la copie de docker.env donnée aux
+# conteneurs, pour qu'aucun jeton n'entre dans un conteneur.
+SCRIPT_SETTINGS=(DHI_USERNAME DHI_TOKEN)
 # Réglages de Keycloak, obligatoires dans docker.env : un fichier qui ne les a pas est refusé.
 KEYCLOAK_SETTINGS=(KC_DB_URL KC_DB_USERNAME KC_DB_PASSWORD KC_HOSTNAME APP_ADMIN_PASSWORD APP_KEYCLOAK_CLIENT_SECRET
                    APP_KEYCLOAK_URL KEYCLOAK_URL)
@@ -120,12 +125,12 @@ create_settings() {  # docker.env absent : le créer à partir des modèles des 
   {
     print "# Réglages des conteneurs sur ce poste (docker-deploy.zsh, docker-deploy.ps1)."
     print "# Le SEUL vrai fichier de réglages, non suivi par Git. Créé en mettant bout à bout les modèles"
-    print "# de chaque module (postgres/, liquibase/, keycloak/, backend/, frontend/ : docker.example.env)."
+    print "# du script (deployment/) et de chaque module (postgres/, liquibase/, keycloak/, backend/, frontend/) : docker.example.env."
     print "# Voir docs/deploiement.md, section 7."
     print "#"
     print "# Une ligne VARIABLE=valeur par réglage, sans guillemets. Ne pas laisser de ligne « VARIABLE= »"
     print "# vide : elle remplacerait la valeur prévue par l'image par du vide. Chaque conteneur reçoit"
-    print "# tout le fichier, et ignore ce qui ne le concerne pas."
+    print "# tout le fichier (sauf DHI_USERNAME et DHI_TOKEN, gardés pour le script), et ignore ce qui ne le concerne pas."
     print
     # Les secrets, vides dans les modèles, sont tirés au hasard : le mot de passe de la base,
     # recopié aux trois endroits qui l'attendent ; celui de l'utilisateur de Keycloak dans la base ;
@@ -162,8 +167,27 @@ check_port() {  # check_port <port>
   ok "Port $1 disponible"
 }
 
+login_dhi() {  # connexion à dhi.io (images de base durcies), si docker.env en donne les moyens
+  local user token
+  user=$(setting DHI_USERNAME); token=$(setting DHI_TOKEN)
+  if [[ -z $user || -z $token ]]; then
+    info "DHI_USERNAME et DHI_TOKEN vides dans $SETTINGS : on compte sur un « $ENGINE login dhi.io » déjà fait"
+    return 0
+  fi
+  # Jeton passé par l'entrée standard : jamais sur la ligne de commande, ni à l'écran.
+  print -r -- $token | $ENGINE login dhi.io --username $user --password-stdin >/dev/null \
+    || fail "Connexion à dhi.io refusée pour $user : vérifier DHI_USERNAME et DHI_TOKEN dans $SETTINGS (jeton en lecture seule, voir docs/deploiement.md, section 7)."
+  ok "Connecté à dhi.io ($user)"
+}
+
+prepare_container_settings() {  # copie de docker.env pour les conteneurs, sans les réglages du script
+  # CONTAINER_SETTINGS : fichier provisoire (mktemp, lisible par vous seul), effacé à la sortie du
+  # script par le « trap » posé à côté de l'appel (dans une fonction, zsh l'exécuterait dès sa fin).
+  grep -vE "^(${(j:|:)SCRIPT_SETTINGS})=" $SETTINGS > $CONTAINER_SETTINGS || true
+}
+
 build_image() {  # build_image <image> <dossier du module>
-  $ENGINE build -t $1 $2 || fail "La fabrication de l'image $1 a échoué (voir ci-dessus)."
+  $ENGINE build -t $1 $2 || fail "La fabrication de l'image $1 a échoué (voir ci-dessus ; image de base refusée : connexion à dhi.io, DHI_USERNAME et DHI_TOKEN de $SETTINGS)."
   ok "Image $1 prête"
 }
 
@@ -229,7 +253,7 @@ start_postgres() {
   # Le volume est monté sur /var/lib/postgresql : PostgreSQL 18 range ses fichiers dans un
   # sous-dossier par version (18/data), ce qui facilitera les montées de version.
   $ENGINE run -d --name $POSTGRES --network $NETWORK -p 127.0.0.1:$PORT_POSTGRES:5432 \
-    --env-file $SETTINGS -v $VOLUME:/var/lib/postgresql $POSTGRES >/dev/null
+    --env-file $CONTAINER_SETTINGS -v $VOLUME:/var/lib/postgresql $POSTGRES >/dev/null
   wait_for_postgres
 }
 
@@ -249,7 +273,7 @@ check_schema() {  # la base a-t-elle été préparée pour cette version (schém
 
 apply_structure() {
   # Liquibase reçoit l'adresse de la base, l'utilisateur et le mot de passe, déduits de POSTGRES_*.
-  $ENGINE run --rm --network $NETWORK --env-file $SETTINGS $LIQUIBASE update || fail "Liquibase n'a pas pu appliquer la structure de la base (voir ci-dessus)."
+  $ENGINE run --rm --network $NETWORK --env-file $CONTAINER_SETTINGS $LIQUIBASE update || fail "Liquibase n'a pas pu appliquer la structure de la base (voir ci-dessus)."
   ok "Structure de la base à jour (Liquibase)"
 }
 
@@ -257,7 +281,7 @@ start_keycloak() {
   # Port du poste : la console d'administration de Keycloak (développement). Les pages de
   # connexion, elles, passent par l'interface (http://localhost:$PORT_FRONTEND/auth).
   $ENGINE run -d --name $KEYCLOAK --network $NETWORK -p 127.0.0.1:$PORT_KEYCLOAK:8080 \
-    --env-file $SETTINGS $KEYCLOAK >/dev/null
+    --env-file $CONTAINER_SETTINGS $KEYCLOAK >/dev/null
   # Le premier démarrage prépare ses tables et importe le domaine : jusqu'à une ou deux minutes.
   wait_for "Keycloak" $KEYCLOAK "http://localhost:$PORT_KEYCLOAK/auth/realms/suivi-delivery/.well-known/openid-configuration" 180
   # Domaine importé à l'instant (base neuve) : le compte « admin » de l'outil vient d'être créé.
@@ -270,7 +294,7 @@ start_keycloak() {
 
 start_backend() {
   $ENGINE run -d --name $BACKEND --network $NETWORK -p $PORT_BACKEND:8000 \
-    --env-file $SETTINGS $BACKEND >/dev/null
+    --env-file $CONTAINER_SETTINGS $BACKEND >/dev/null
   wait_for "Le backend" $BACKEND "http://localhost:$PORT_BACKEND/readyz"
   if [[ $($ENGINE container inspect -f '{{.State.Running}}' $KEYCLOAK 2>/dev/null) != true ]]; then
     info "Keycloak ne tourne pas : l'API refusera les jetons (lancer : $COMMAND keycloak)"
@@ -279,7 +303,7 @@ start_backend() {
 
 start_frontend() {
   $ENGINE run -d --name $FRONTEND --network $NETWORK -p $PORT_FRONTEND:8080 \
-    --env-file $SETTINGS $FRONTEND >/dev/null
+    --env-file $CONTAINER_SETTINGS $FRONTEND >/dev/null
   wait_for "Le frontend" $FRONTEND "http://localhost:$PORT_FRONTEND/health"
   wait_for "La page de connexion" $FRONTEND "http://localhost:$PORT_FRONTEND/login"
   if [[ $($ENGINE container inspect -f '{{.State.Running}}' $KEYCLOAK 2>/dev/null) == true ]]; then
@@ -323,6 +347,9 @@ ok "Conteneurs fabriqués et lancés par $ENGINE"
 ! selected frontend  || [[ -f frontend/Dockerfile ]]  || fail "Fichier introuvable : frontend/Dockerfile"
 create_settings
 check_keycloak_settings
+CONTAINER_SETTINGS=$(mktemp)
+trap 'rm -f $CONTAINER_SETTINGS' EXIT
+prepare_container_settings
 if [[ $NEEDS_DATABASE == true ]]; then
   # La base de référence : POSTGRES_*.
   DB_NAME=$(setting POSTGRES_DB); DB_USER=$(setting POSTGRES_USER); DB_PASSWORD=$(setting POSTGRES_PASSWORD)
@@ -366,6 +393,7 @@ ok "Keycloak servi sous $FRONTEND_URL/auth, joint par l'API et l'interface sur $
 
 # --- 1. Fabriquer les images (avant de toucher aux conteneurs en place) --------
 step "Fabrication des images"
+login_dhi
 ! selected postgres  || build_image $POSTGRES postgres
 ! selected liquibase || build_image $LIQUIBASE liquibase
 ! selected keycloak  || build_image $KEYCLOAK keycloak
