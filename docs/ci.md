@@ -8,7 +8,7 @@ Sur GitHub, chaque fichier de `.github/workflows/` part tout seul, en parallèle
 
 | Fichier | Rôle |
 | --- | --- |
-| `snapshot.yml` | **pipeline snapshot** : chaque push, toutes branches ; titre des PR ; bouton *Run workflow* |
+| `snapshot.yml` | **pipeline snapshot** : chaque push, toutes branches (sauté sur le commit de version) ; bouton *Run workflow* |
 | `release.yml` | **pipeline release** : chaque push sur `main` (release-please) ; bouton pour relancer une publication |
 | `_tests-backend.yml` | brique : backend, en mémoire puis sur PostgreSQL |
 | `_tests-frontend.yml` | brique : frontend |
@@ -16,12 +16,14 @@ Sur GitHub, chaque fichier de `.github/workflows/` part tout seul, en parallèle
 | `_version.yml` | brique : version unique |
 | `_images.yml` | brique : fabrication et publication des cinq images (étiquette, processeurs, cache… donnés par le pipeline) |
 | `.github/actions/connexion-dhi/` | action du dépôt : connexion à dhi.io, réessayée en cas de coupure (§ 3) |
+| `.github/workflows/pr-title.yml` | sur chaque PR vers `main` : le titre suit Conventional Commits (seul contrôle lancé par une PR, en lecture seule) |
 
 ```PlainText
-snapshot.yml   (chaque push, toutes branches)
+snapshot.yml   (chaque push, toutes branches ; sauté sur le commit de version)
   étape 1 : backend · frontend · chart Helm · version          (en parallèle)
   étape 2 : images <branche>-snapshot, Intel/AMD + ARM, ghcr.io  ← seulement si l'étape 1 est verte
-  (sur une PR : seulement le titre de la PR)
+
+pr-title.yml   (chaque PR vers main) : le titre de la PR
 
 release.yml    (chaque push sur main)
   étape 1 : release-please (met à jour sa PR de version, ou crée la version à sa fusion)
@@ -32,7 +34,9 @@ release.yml    (chaque push sur main)
 
 Dans l'onglet *Actions*, chaque pipeline apparaît avec son graphe. **Tout est lancé à chaque push**, sans filtre sur les fichiers modifiés (choix de l'utilisateur : pas de script maison ni d'action tierce pour le filtre) : les caches de uv, de npm et de Docker rendent rapides les parties qui n'ont pas changé (une image dont le dossier n'a pas bougé est « refabriquée » en quelques secondes). Si les durées deviennent gênantes, l'action `dorny/paths-filter` pourra être ajoutée à l'étape 1 du snapshot (surtout pas `tj-actions/changed-files`, piratée en mars 2025).
 
-**Sur une PR**, les vérifications du push (même commit) s'affichent déjà dans la PR : l'évènement « PR » ne lance que la vérification du titre.
+**Sur une PR**, les vérifications du push (même commit) s'affichent déjà dans la PR : l'évènement « PR » ne lance que la vérification du titre, dans son propre workflow (`pr-title.yml`), en lecture seule. Il tourne ainsi aussi sur la PR de version de release-please : GitHub ne donne à ce robot que la lecture, et refusait au démarrage le snapshot, qui demande le droit de publier des images (« workflow file issue », sans aucun job).
+
+**Sur le commit de version** (« chore: version X.Y.Z », fusion de la PR de release-please), tous les jobs du snapshot sont sautés : `release.yml` y refait les vérifications et publie la version, inutile de tout faire deux fois. La branche de la PR de version (`release-please--branches--main`) n'a pas non plus de snapshot.
 
 ### Les vérifications
 
@@ -43,7 +47,7 @@ Dans l'onglet *Actions*, chaque pipeline apparaît avec son graphe. **Tout est l
 | **Frontend** | `npm ci --ignore-scripts`, `npm run typecheck`, `npm run build` |
 | **Chart Helm** | **chart-verifier de Red Hat**, profil `developer-console` (voir ci-dessous) |
 | **Version unique** | `cicd/check_versions.py` : le même numéro partout (`pyproject.toml`, `uv.lock`, `package.json`, `package-lock.json`, `Chart.yaml`) |
-| **Titre de la PR** (PR seulement) | le titre suit Conventional Commits (`feat: …`, `fix: …`) : fusionnée en squash, la PR devient un commit qui porte ce titre, dont release-please déduit la version (§ 5) |
+| **Titre de la PR** (PR seulement, `pr-title.yml`) | le titre suit Conventional Commits (`feat: …`, `fix: …`) : fusionnée en squash, la PR devient un commit qui porte ce titre, dont release-please déduit la version (§ 5) |
 
 Un Dockerfile cassé se voit à l'étape « images » du snapshot (il n'y a plus de fabrication séparée « sans publication »).
 
@@ -132,7 +136,7 @@ Pour qu'une PR ne puisse pas être fusionnée si une vérification échoue :
 
 *Settings* → *Branches* → règle sur `main` → *Require status checks to pass*, puis choisir les vérifications.
 
-Toutes les vérifications sont lancées à chaque push (§ 1) : aucune ne reste « en attente » faute de fichier modifié, on peut donc les rendre obligatoires telles quelles (pipeline snapshot : « Backend », « Frontend », « Chart Helm », « Version », et « Titre de la PR »).
+Toutes les vérifications sont lancées à chaque push (§ 1) : aucune ne reste « en attente » faute de fichier modifié, on peut donc les rendre obligatoires telles quelles (pipeline snapshot : « Backend », « Frontend », « Chart Helm », « Version » ; workflow à part : « Titre de la PR »).
 
 ## 5. Publier les images : sortir une version
 
@@ -155,7 +159,7 @@ Le numéro de version est géré par **release-please** (outil de Google, action
 | `feat!: …`, `fix!: …` (ou ligne `BREAKING CHANGE: …` dans le message) | change ce qui existait (API, données…) | `0.5.0` → `0.6.0` (avant la 1.0 : `bump-minor-pre-major`) ; `1.2.0` → `2.0.0` après |
 | `docs:`, `refactor:`, `test:`, `build:`, `ci:`, `chore:`, `style:`, `perf:`, `revert:` | le reste | pas de nouvelle version à elle seule (`perf` et `revert` apparaissent dans le journal) |
 
-Une précision facultative entre parenthèses : `fix(frontend): …`, `feat(api): …`. Le texte après les deux-points reste en français. La vérification « Titre de la PR » (pipeline snapshot) refuse un titre qui ne suit pas la règle : le corriger sur GitHub suffit, la vérification se relance. Les messages des commits de la branche sont libres.
+Une précision facultative entre parenthèses : `fix(frontend): …`, `feat(api): …`. Le texte après les deux-points reste en français. La vérification « Titre de la PR » (`pr-title.yml`) refuse un titre qui ne suit pas la règle : le corriger sur GitHub suffit, la vérification se relance. Les messages des commits de la branche sont libres.
 
 **2. Fusionner les PR comme d'habitude.** À chaque fusion sur `main`, release-please ouvre ou met à jour **une PR de version**, intitulée « chore: version X.Y.Z », qui :
 

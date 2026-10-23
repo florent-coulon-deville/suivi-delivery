@@ -1,0 +1,45 @@
+# Titre des PR (Conventional Commits) : seul contrôle lancé par une PR. Voir docs/ci.md.
+#
+# Les PR sont fusionnées en squash : le commit sur main porte le titre de la PR, dont
+# release-please déduit la prochaine version. Le titre est donc vérifié à l'ouverture de la PR et
+# à chaque modification (« edited »). Les vérifications du code, elles, tournent sur le push de
+# la branche (snapshot.yml) et s'affichent déjà dans la PR.
+#
+# Workflow à part, en lecture seule : il tourne aussi sur la PR de version ouverte par
+# release-please, à qui GitHub ne donne que la lecture (snapshot.yml, qui publie des images,
+# y était refusé au démarrage). Vérifié dans le shell, sans action tierce ; le titre passe par
+# une variable d'environnement, jamais écrit dans le script.
+name: Titre de la PR
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-title-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pr-title:
+    name: Titre de la PR (Conventional Commits)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Vérifier le titre
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(feat|fix|perf|revert|docs|refactor|test|build|ci|chore|style)(\([a-z0-9-]+\))?!?: .+'
+          if [[ "$TITLE" =~ $pattern ]]; then
+            echo "Titre correct : $TITLE"
+          else
+            echo "::error::Titre « $TITLE » refusé : il doit commencer par un type suivi de « : »."
+            echo "Exemples : « feat: export Excel », « fix(frontend): menu Saisie », « feat!: … » si l'existant casse."
+            echo "Types : feat (nouveauté), fix (correction), perf, revert, docs, refactor, test, build, ci, chore, style."
+            echo "Corriger le titre de la PR sur GitHub : la vérification se relance toute seule."
+            exit 1
+          fi
