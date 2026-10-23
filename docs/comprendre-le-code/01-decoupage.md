@@ -1,3 +1,33 @@
+# 1. Le découpage en modules
+
+## La carte
+
+```Plaintext
+backend/
+├── pyproject.toml          dépendances + réglages de pytest, ruff, ty
+├── app/                    le code de l'API
+│   ├── __main__.py            lancement (python -m app)
+│   ├── settings.py            les réglages, lus dans les variables d'environnement
+│   ├── main.py             ① assemble l'application
+│   ├── http.py             ② règles HTTP communes (avant les routes)
+│   ├── schemas.py          ③ forme des données échangées (vérification à l'entrée)
+│   ├── routes/             ④ une ressource par fichier
+│   │   ├── __init__.py        outils communs à toutes les routes
+│   │   ├── clusters.py, modules.py, installations.py…
+│   │   └── health.py           adresses de santé pour Kubernetes (/startupz, /readyz, /livez)
+│   ├── consistency.py        ⑤ règles d'ensemble (plusieurs objets à la fois)
+│   ├── versions.py            comparaison de numéros de version
+│   ├── security.py            vérification des jetons de Keycloak (identité, rôle)
+│   ├── access.py               qui a le droit de faire quoi (401, 403)
+│   ├── directory.py            les comptes, gérés dans Keycloak (écran Comptes)
+│   ├── configuration.py       export de toute la configuration en fichier Excel
+│   ├── import_configuration.py  import de ce fichier Excel
+│   ├── audit_log.py             journal des actions (qui a saisi quoi)
+│   ├── storage.py         ⑥ les données : les opérations communes, et la version en mémoire
+│   ├── storage_postgres.py   les mêmes opérations, dans la base PostgreSQL
+│   └── transactions.py        une transaction par requête (base PostgreSQL)
+├── scripts/load_demo.py données de démonstration
+├── scripts/login.py     connexion d'une personne pour ses scripts (jeton hors ligne de Keycloak)
 └── tests/                  vérification automatique de tout ce qui précède
 ```
 
