@@ -20,7 +20,7 @@ Sur GitHub, chaque fichier de `.github/workflows/` part tout seul, en parallèle
 ```
 snapshot.yml   (chaque push, toutes branches)
   étape 1 : backend · frontend · chart Helm · version          (en parallèle)
-  étape 2 : images <branche>-snapshot, Intel/AMD, ghcr.io        ← seulement si l'étape 1 est verte
+  étape 2 : images <branche>-snapshot, Intel/AMD + ARM, ghcr.io  ← seulement si l'étape 1 est verte
   (sur une PR : seulement le titre de la PR)
 
 release.yml    (chaque push sur main)
@@ -194,7 +194,7 @@ Entre deux versions, on veut pouvoir essayer le travail en cours sur un cluster.
 - **Écrasée** : l'étiquette désigne toujours le dernier état de la branche. Le commit d'où vient l'image est noté dans l'image (`org.opencontainers.image.revision`) : `docker buildx imagetools inspect <image> --format '{{json .Image}}'`, ou `skopeo inspect`.
 - **Une étiquette par branche** : deux branches ne s'écrasent jamais l'une l'autre.
 - **Jamais un numéro de version** : `0.5.0` n'est publiée que par la release (ci-dessus), une seule fois.
-- **Intel/AMD seulement** (`amd64`) : OpenShift et les serveurs. Sur un Mac, kind fabrique ses images en local (`k8s-deploy.zsh`).
+- **Intel/AMD et ARM** (`amd64` et `arm64`, comme une release) : OpenShift et les serveurs, et aussi un Mac à processeur ARM, qui peut récupérer et lancer un snapshot (`docker pull` prend tout seul la bonne version). Chaque image est fabriquée sur une machine GitHub de chaque processeur, puis les deux sont réunies sous `<branche>-snapshot`.
 - Deux pushes rapprochés sur la même branche : le premier est annulé, seul le dernier est publié.
 - **À la demande** : onglet *Actions* → « Snapshot » → *Run workflow*, choisir la branche ; case « Tout refabriquer, sans cache » pour recréer entièrement les images (images de base retéléchargées). Le bouton n'apparaît qu'une fois `snapshot.yml` sur `main` ; avant : `gh workflow run snapshot.yml --ref <branche> -f no_cache=true`.
 

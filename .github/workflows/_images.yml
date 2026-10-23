@@ -3,7 +3,7 @@
 # dans ghcr.io, sous l'étiquette demandée. La même brique sert aux snapshots et aux versions :
 # les images sont toujours fabriquées de la même façon.
 #
-#   snapshot.yml  →  <branche>-snapshot, amd64 seulement, écrasée à chaque push
+#   snapshot.yml  →  <branche>-snapshot, amd64 + arm64 (comme ci-dessous), écrasée à chaque push
 #   release.yml   →  <version>, amd64 + arm64 (chacune sur une machine GitHub du bon processeur,
 #                    sans émulation), publiées sous <version>-amd64 / -arm64 puis réunies sous
 #                    <version> : « docker pull » prend tout seul celle qui convient à la machine

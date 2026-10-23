@@ -5,7 +5,7 @@
 #   1. vérifications, en parallèle : backend (mémoire + PostgreSQL), frontend, chart Helm,
 #      version unique — toutes, à chaque push (le cache les rend rapides) ;
 #   2. images : seulement si toutes les vérifications sont vertes, les cinq images sont
-#      fabriquées (Intel/AMD) et publiées dans ghcr.io sous UNE étiquette par branche, écrasée
+#      fabriquées (Intel/AMD et ARM) et publiées dans ghcr.io sous UNE étiquette par branche, écrasée
 #      à chaque push : on a toujours le dernier état de la branche, pour l'essayer sur un cluster.
 #
 #        main               →  ghcr.io/<propriétaire>/suivi-delivery-backend:main-snapshot
@@ -115,5 +115,8 @@ jobs:
       packages: write  # publier dans ghcr.io
     with:
       tag: ${{ needs.tag.outputs.tag }}
+      # Intel/AMD et ARM, comme une release : les snapshots tournent aussi sur un Mac ARM
+      # (demande de l'utilisateur). « docker pull » prend tout seul la bonne.
+      multiarch: true
       no_cache: ${{ inputs.no_cache == true }}
     secrets: inherit  # DHI_USERNAME, DHI_TOKEN (images de base durcies)
