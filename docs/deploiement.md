@@ -169,7 +169,7 @@ Pour limiter les failles de sécurité :
   - Le backend n'écrit rien dans son conteneur : les données sont dans la base.
   - Le frontend n'écrit que dans le cache de Next.js (`.next/cache`).
   - Keycloak est préparé à la fabrication (`kc.sh build`), et n'écrit qu'en `/tmp` et `/opt/keycloak/data/tmp`.
-  - PostgreSQL : l'image durcie ne sait pas tourner avec un utilisateur au hasard ; notre point d'entrée (`postgres/start.sh`) le déclare au système à chaque démarrage (dans `/tmp/passwd`, vers lequel renvoie `/etc/passwd`). Ailleurs (kind), le chart le lance avec son utilisateur `postgres` (70).
+  - PostgreSQL : l'image durcie ne sait pas tourner avec un utilisateur au hasard ; notre point d'entrée (`postgres/start.sh`) le déclare au système à chaque démarrage (dans `/tmp/passwd`, vers lequel renvoie `/etc/passwd` ; l'image livre ce fichier déjà rempli, sinon Podman le créerait lui-même, en root, au lancement). Ailleurs (kind), le chart le lance avec son utilisateur `postgres` (70).
 - **Changer de version majeure se décide à la main**, après un essai : Debian 14 (forky) vers 2027, une nouvelle version de Python ou de Node.js.
 
 **Publication** : pour OpenShift, les images sont publiées par la CI dans un registre (`ghcr.io/florent-coulon-deville/…` sur GitHub), à la sortie de chaque version (étiquette Git `vX.Y.Z`). Voir [docs/ci.md § 5](ci.md#5-publier-les-images--sortir-une-version).

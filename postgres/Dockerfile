@@ -28,7 +28,10 @@ COPY --chmod=0755 start.sh /usr/local/bin/start.sh
 # durcie n'a pas d'utilisateur nommé root).
 USER 0
 RUN mv /etc/passwd /etc/passwd.image && cp /etc/passwd.image /tmp/passwd \
-    && chgrp 0 /tmp/passwd && chmod 0664 /tmp/passwd && ln -s /tmp/passwd /etc/passwd
+    && chgrp 0 /tmp/passwd && chmod 0664 /tmp/passwd && ln -s /tmp/passwd /etc/passwd \
+    && chgrp 0 /run/postgresql && chmod 0775 /run/postgresql
+# (/run/postgresql, où PostgreSQL ouvre sa prise locale, est lui aussi donné au groupe 0 : un
+# utilisateur au hasard doit pouvoir y écrire quand aucun dossier n'y est monté.)
 
 # Jamais en administrateur à l'exécution : l'utilisateur « postgres » de l'image durcie (70), à qui
 # appartiennent déjà les dossiers des données (/var/lib/postgresql/18/data) et d'exécution.
