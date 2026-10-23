@@ -206,7 +206,7 @@ cat deployment/docker.example.env postgres/docker.example.env liquibase/docker.e
 
 | Partie | Réglages |
 | --- | --- |
-| Le script | `DHI_USERNAME`, `DHI_TOKEN` : connexion à dhi.io, d'où viennent les images de base (compte Docker, jeton en lecture seule). Remplis : `docker-deploy` et `k8s-deploy` se connectent (`docker login`, ou `podman login` avec `--podman`, jeton passé par l'entrée standard) avant de fabriquer. Vides : ils comptent sur un `docker login dhi.io` déjà fait. **Jamais transmis aux conteneurs.** Facultatifs : un `docker.env` plus ancien, sans ces lignes, reste valable (les ajouter à la main) |
+| Le script | `DHI_USERNAME`, `DHI_TOKEN` : connexion à dhi.io, d'où viennent les images de base (compte Docker ; sur le poste, un jeton en lecture seule suffit). Remplis : `docker-deploy` et `k8s-deploy` se connectent (`docker login`, ou `podman login` avec `--podman`, jeton passé par l'entrée standard) avant de fabriquer. Vides : ils comptent sur un `docker login dhi.io` déjà fait. **Jamais transmis aux conteneurs.** Facultatifs : un `docker.env` plus ancien, sans ces lignes, reste valable (les ajouter à la main) |
 | PostgreSQL | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` : la base de référence |
 | Liquibase | `LIQUIBASE_COMMAND_URL` (adresse JDBC de la base, avec le schéma de nos tables : `jdbc:postgresql://suivi-delivery-postgres-local:5432/suivi_delivery?currentSchema=suivi_delivery`), `LIQUIBASE_COMMAND_USERNAME`, `LIQUIBASE_COMMAND_PASSWORD` |
 | Keycloak | sa base (`KC_DB_URL`, `KC_DB_USERNAME=keycloak`, `KC_DB_PASSWORD`), son adresse publique (`KC_HOSTNAME=http://localhost:8080/auth`, sous l'interface), sa console (`KC_HOSTNAME_ADMIN`, `KC_BOOTSTRAP_ADMIN_*`), et ce qu'il importe au premier démarrage : `APP_ADMIN_PASSWORD` (compte `admin` de l'outil), `APP_KEYCLOAK_CLIENT_SECRET` (lue aussi par l'API) |
@@ -588,11 +588,11 @@ Deux façons, qui installent exactement la même chose (le chart Helm du projet)
 
 ### 9.1 Avec Helm, pas à pas
 
-À chaque version, la CI publie les cinq images ([ci.md § 5](ci.md#5-publier-les-images--sortir-une-version)) ; le chart, lui, n'est pas publié : on le prend dans le dépôt Git, à l'étiquette de la version (`vX.Y.Z`).
+À chaque version, la CI publie les cinq images et le chart ([ci.md § 5](ci.md#5-publier-les-images--sortir-une-version)). Le chart se prend sur Docker Hub, ou dans le dépôt Git, à l'étiquette de la version (`vX.Y.Z`) : c'est le même.
 
 | Quoi | Où |
 | --- | --- |
-| le chart | le dossier `helm/suivi-delivery` du dépôt Git, à l'étiquette `v<version>` |
+| le chart | `oci://registry-1.docker.io/florentcoulon/suivi-delivery`, version `<version>` (`helm pull … --version <version> --untar` pour le récupérer), ou le dossier `helm/suivi-delivery` du dépôt Git, à l'étiquette `v<version>` |
 | les images | `ghcr.io/florent-coulon-deville/suivi-delivery-{backend,frontend,liquibase,keycloak,postgres}:<version>` |
 
 Le chart d'une version installe les images **de la même version**, et va les chercher seul dans ce registre (`images.registry`). On ne choisit donc qu'un numéro : celui de l'étiquette.

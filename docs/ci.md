@@ -119,7 +119,7 @@ docker run --rm -v "$PWD/helm/suivi-delivery:/charts/suivi-delivery:ro" quay.io/
 ## 3. Sécurité
 
 - **Droits minimaux.** GitHub : `permissions: contents: read`, la CI ne peut que lire le code ; `persist-credentials: false`, le jeton n'est pas gardé après la récupération du code.
-- **Deux secrets à créer sur GitHub** (Settings → Secrets and variables → Actions) : `DHI_USERNAME` (identifiant Docker Hub) et `DHI_TOKEN` (jeton d'accès personnel Docker, en lecture seule). Ils servent seulement à télécharger les images de base durcies (`dhi.io`) ; `docker login` s'en sert directement, aucune action tierce ne les voit. Les PR venant d'un fork n'y ont pas accès : leur fabrication d'images échoue.
+- **Deux secrets à créer sur GitHub** (Settings → Secrets and variables → Actions) : `DHI_USERNAME` (identifiant Docker Hub) et `DHI_TOKEN` (jeton d'accès personnel Docker, droits **Read, Write, Delete**). Ils servent à télécharger les images de base durcies (`dhi.io`), et, à chaque version, à **publier sur Docker Hub** les images et le chart (d'où le droit d'écrire) ; `docker login` s'en sert directement, aucune action tierce ne les voit. Les PR venant d'un fork n'y ont pas accès : leur fabrication d'images échoue.
 - **Connexion à dhi.io tolérante aux coupures** (action du dépôt `.github/actions/connexion-dhi`, utilisée par `_tests-backend.yml` et `_images.yml`) : avant chaque essai, la CI vérifie que dhi.io répond (code 401 attendu, avec le temps de réponse, écrits dans le journal), puis se connecte ; jusqu'à 5 essais, avec des pauses de 30, 60, 90 et 120 s. Le journal distingue ainsi « dhi.io ne répond pas » (panne chez Docker, réessayer plus tard : *Re-run failed jobs*) de « jeton refusé » (secret à refaire). L'image de la base de test du job PostgreSQL (`services:`) est téléchargée par GitHub lui-même, sans nouvel essai possible.
 - **Fabrication des images réessayée** (`_images.yml`) : dhi.io peut aussi ne pas répondre pendant la fabrication, quand BuildKit lit les images de base (« DeadlineExceeded »). L'étape de fabrication est donc écrite trois fois : l'essai 2 (après 60 s) ne se lance que si l'essai 1 a échoué, l'essai 3 (après 120 s) que si l'essai 2 a échoué. Un essai raté apparaît en orange dans le journal, sans faire échouer la tâche ; seul l'échec du troisième la fait échouer. Un Dockerfile vraiment cassé échoue donc trois fois (quelques minutes de plus). Durée maximale de ces tâches : 40 minutes.
 - La publication utilise le jeton fourni automatiquement à chaque exécution (`GITHUB_TOKEN`, avec le droit `packages: write` pour les seuls jobs d'images). Il expire à la fin de l'exécution, et n'est **confié à aucune action tierce** : c'est `docker login` qui s'en sert, directement.
@@ -140,11 +140,12 @@ Toutes les vérifications sont lancées à chaque push (§ 1) : aucune ne reste 
 
 ## 5. Publier les images : sortir une version
 
-OpenShift ne fabrique pas les images : il les télécharge dans un **registre d'images**. Elles y sont publiées par la CI, **une fois par version**, jamais à chaque PR. Sur GitHub, le **chart Helm** n'est pas publié : on l'installe depuis le dépôt Git, à l'étiquette de la version ([deploiement.md § 9.1](deploiement.md#91-avec-helm-pas-à-pas)).
+OpenShift ne fabrique pas les images : il les télécharge dans un **registre d'images**. Elles y sont publiées par la CI, **une fois par version**, jamais à chaque PR, sur **ghcr.io** et sur **Docker Hub** (les mêmes images, recopiées depuis ghcr.io). Le **chart Helm** est publié sur Docker Hub seulement ; il s'installe aussi depuis le dépôt Git, à l'étiquette de la version ([deploiement.md § 9.1](deploiement.md#91-avec-helm-pas-à-pas)).
 
 | Registre | Images | Chart Helm |
 | --- | --- | --- |
-| GitHub Container Registry | `ghcr.io/florent-coulon-deville/suivi-delivery-backend:<version>`, `…-frontend:<version>`, `…-liquibase:<version>`, `…-keycloak:<version>`, `…-postgres:<version>` | pas publié : dossier `helm/suivi-delivery` du dépôt Git, à l'étiquette `v<version>` |
+| GitHub Container Registry | `ghcr.io/florent-coulon-deville/suivi-delivery-backend:<version>`, `…-frontend:<version>`, `…-liquibase:<version>`, `…-keycloak:<version>`, `…-postgres:<version>` (et les snapshots) | pas publié |
+| Docker Hub (dépôts publics, compte `DHI_USERNAME`) | `docker.io/florentcoulon/suivi-delivery-backend:<version>`, `…-frontend`, `…-liquibase`, `…-keycloak`, `…-postgres` (versions seulement) | `oci://registry-1.docker.io/florentcoulon/suivi-delivery`, version `<version>` |
 
 ### Sortir une version : release-please
 
@@ -183,7 +184,9 @@ Publication ratée (panne de dhi.io…) : onglet *Actions* → « Release » →
     - **Forcer un numéro** (par exemple passer en `1.0.0`) : un commit dont le message contient la ligne `Release-As: 1.0.0`.
     - Point de départ : `0.4.3` dans `.release-please-manifest.json`, et `bootstrap-sha` (le premier commit du dépôt) dans `release-please-config.json` : les commits d'avant ne sont pas relus.
 
-**Le chart Helm n'est plus publié sur GitHub** (décision de l'utilisateur) : il reste vérifié à chaque PR (chart-verifier, § 2), et s'installe depuis le dépôt Git, à l'étiquette de la version. Les versions déjà publiées dans `oci://ghcr.io/florent-coulon-deville/charts/suivi-delivery` y restent.
+**Docker Hub** (job « Docker Hub » de `release.yml`, après les images) : les cinq images de la version sont **recopiées** depuis ghcr.io (`docker buildx imagetools create`, avec leurs deux processeurs : rien n'est refabriqué), puis le chart est emballé (`helm package`) et publié en OCI (`helm push`), avec le compte et le jeton de dhi.io. Les dépôts Docker Hub sont publics, créés au premier envoi. Les snapshots ne vont pas sur Docker Hub.
+
+**Le chart Helm n'est pas publié sur GitHub** (décision de l'utilisateur) : il reste vérifié à chaque push (chart-verifier, § 2), et s'installe depuis Docker Hub ou depuis le dépôt Git, à l'étiquette de la version. Les versions déjà publiées dans `oci://ghcr.io/florent-coulon-deville/charts/suivi-delivery` y restent. Le paquet ne contient que les modèles de réglages (`.helmignore` écarte `values-secret*.yaml` et `values-crc.yaml`).
 
 ### Snapshots : les images de chaque branche, à chaque push
 
