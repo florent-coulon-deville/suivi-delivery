@@ -47,9 +47,18 @@ Dans l'onglet *Actions*, chaque pipeline apparaît avec son graphe. **Tout est l
 | **Frontend** | `npm ci --ignore-scripts`, `npm run typecheck`, `npm run build` |
 | **Chart Helm** | **chart-verifier de Red Hat**, profil `developer-console` (voir ci-dessous) |
 | **Version unique** | `cicd/check_versions.py` : le même numéro partout (`pyproject.toml`, `uv.lock`, `package.json`, `package-lock.json`, `Chart.yaml`) |
+| **Secrets** (`_secrets.yml`) | **gitleaks v8.30.1** (image officielle `ghcr.io/gitleaks/gitleaks`) relit **tout l'historique** Git : un secret ajouté puis effacé y reste, lisible par tous (dépôt public). Complète la détection des secrets de GitHub, qui ne reconnaît que les jetons des grands fournisseurs. Secrets masqués dans le journal |
 | **Titre de la PR** (PR seulement, `pr-title.yml`) | le titre suit Conventional Commits (`feat: …`, `fix: …`) : fusionnée en squash, la PR devient un commit qui porte ce titre, dont release-please déduit la version (§ 5) |
 
 Un Dockerfile cassé se voit à l'étape « images » du snapshot (il n'y a plus de fabrication séparée « sans publication »).
+
+**Failles connues des images (Docker Scout).** Après la publication, chaque image (snapshot comme version) passe à **Docker Scout 1.26.0**, l'outil de Docker (image officielle `docker/scout-cli`), avec le compte de dhi.io : il compte les failles connues (CVE) par gravité, critique, élevée, moyenne, faible, et dit lesquelles ont déjà une correction. Il lit aussi les avis joints par Docker à ses images durcies. **Rapport seulement** (choix de l'utilisateur) : un tableau par image dans le résumé de l'exécution (onglet *Actions* → l'exécution → *Summary*), jamais d'échec du pipeline. Pour voir une image sur le poste :
+
+```bash
+docker scout quickview ghcr.io/florent-coulon-deville/suivi-delivery-backend:0.6.0
+```
+
+Premier relevé (0.5.0, Intel/AMD) : backend 0 critique / 7 élevées, frontend 2 / 1, liquibase 0 / 2, keycloak 3 / 8, postgres 0 / 1, note C partout. Une fois ces chiffres suivis quelque temps, on pourra décider de faire échouer le pipeline sur les failles **critiques corrigeables**.
 
 **Backend (uv) : `--frozen --no-build` sur chaque commande uv** (`uv sync` comme `uv run`), exigé par SonarCloud.
 
@@ -136,7 +145,7 @@ Pour qu'une PR ne puisse pas être fusionnée si une vérification échoue :
 
 *Settings* → *Branches* → règle sur `main` → *Require status checks to pass*, puis choisir les vérifications.
 
-Toutes les vérifications sont lancées à chaque push (§ 1) : aucune ne reste « en attente » faute de fichier modifié, on peut donc les rendre obligatoires telles quelles (pipeline snapshot : « Backend », « Frontend », « Chart Helm », « Version » ; workflow à part : « Titre de la PR »).
+Toutes les vérifications sont lancées à chaque push (§ 1) : aucune ne reste « en attente » faute de fichier modifié, on peut donc les rendre obligatoires telles quelles (pipeline snapshot : « Backend », « Frontend », « Chart Helm », « Version », « Secrets » ; workflow à part : « Titre de la PR »).
 
 ## 5. Publier les images : sortir une version
 

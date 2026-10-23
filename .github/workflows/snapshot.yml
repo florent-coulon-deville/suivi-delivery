@@ -3,7 +3,7 @@
 # (fichiers « _*.yml ») :
 #
 #   1. vérifications, en parallèle : backend (mémoire + PostgreSQL), frontend, chart Helm,
-#      version unique — toutes, à chaque push (le cache les rend rapides) ;
+#      version unique, aucun secret dans l'historique (gitleaks) — toutes, à chaque push (le cache les rend rapides) ;
 #   2. images : seulement si toutes les vérifications sont vertes, les cinq images sont
 #      fabriquées (Intel/AMD et ARM) et publiées dans ghcr.io sous UNE étiquette par branche, écrasée
 #      à chaque push : on a toujours le dernier état de la branche, pour l'essayer sur un cluster.
@@ -60,6 +60,10 @@ jobs:
     name: Version
     if: "!startsWith(github.event.head_commit.message, 'chore: version ')"
     uses: ./.github/workflows/_version.yml
+  no-secrets:
+    name: Secrets
+    if: "!startsWith(github.event.head_commit.message, 'chore: version ')"
+    uses: ./.github/workflows/_secrets.yml
 
   # --- Étape 2 : images, si tout est vert -------------------------------------------------------
   tag:
@@ -83,7 +87,7 @@ jobs:
           echo "Branche $BRANCH → étiquette $slug-snapshot"
   images:
     name: Images
-    needs: [backend, frontend, helm, version, tag]
+    needs: [backend, frontend, helm, version, no-secrets, tag]
     uses: ./.github/workflows/_images.yml
     permissions:
       contents: read

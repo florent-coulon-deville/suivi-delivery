@@ -13,6 +13,9 @@
 # réessayée jusqu'à 3 fois). Le cache de Docker ne refait que ce qui a changé : une image
 # dont le dossier n'a pas bougé est « refabriquée » en quelques secondes.
 #
+# Une fois publiées, chaque image est passée à Docker Scout (failles connues, par gravité) :
+# simple rapport dans le résumé de l'exécution, qui ne fait jamais échouer le pipeline.
+#
 # Actions figées par leur empreinte de commit (version en commentaire). Voir docs/ci.md.
 name: Images
 
@@ -205,3 +208,40 @@ jobs:
         run: |
           docker buildx imagetools create --tag "$IMAGE:$TAG" "$IMAGE:$TAG-amd64" "$IMAGE:$TAG-arm64"
           docker buildx imagetools inspect "$IMAGE:$TAG"
+
+  # Failles connues (CVE) de chaque image publiée, par Docker Scout (l'outil de Docker, image
+  # officielle, version figée) : il lit aussi les avis que Docker joint à ses images durcies
+  # (failles sans effet sur elles). RAPPORT SEULEMENT (choix de l'utilisateur) : un tableau par
+  # image dans le résumé de l'exécution ; jamais d'échec du pipeline. Image lue directement dans
+  # le registre (« registry:// »), en Intel/AMD (le contenu est le même en ARM). Compte : celui
+  # de dhi.io (Docker Scout demande un compte Docker), passé par des variables d'environnement.
+  scout:
+    name: Failles connues ${{ matrix.part }} (Docker Scout)
+    needs: [prepare, build, merge]
+    if: ${{ !cancelled() && needs.build.result == 'success' && (needs.merge.result == 'success' || needs.merge.result == 'skipped') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    continue-on-error: true  # rapport seulement
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [backend, frontend, liquibase, keycloak, postgres]
+    steps:
+      - name: Rapport Docker Scout 1.26.0
+        env:
+          DOCKER_SCOUT_HUB_USER: ${{ secrets.DHI_USERNAME }}
+          DOCKER_SCOUT_HUB_PASSWORD: ${{ secrets.DHI_TOKEN }}
+          IMAGE: ${{ needs.prepare.outputs.registry }}/suivi-delivery-${{ matrix.part }}:${{ inputs.tag }}
+        run: |
+          scout() {
+            docker run --rm -e DOCKER_SCOUT_HUB_USER -e DOCKER_SCOUT_HUB_PASSWORD \
+              docker.io/docker/scout-cli:1.26.0 "$@" "registry://$IMAGE" --platform linux/amd64
+          }
+          {
+            echo "## Failles connues : \`$IMAGE\`"
+            echo '```'
+            scout quickview || echo "Docker Scout n'a pas pu lire l'image."
+            echo '```'
+            echo "### Critiques et élevées"
+            scout cves --only-severity critical,high --format markdown || true
+          } 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"  # dans le résumé, et dans le journal
