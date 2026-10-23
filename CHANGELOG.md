@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.0](https://github.com/florent-coulon-deville/suivi-delivery/compare/v0.6.0...v0.7.0) (2026-10-23)
+
+
+### Nouveautés
+
+* Add secret detection with gitleaks and Docker Scout reporting to CI workflows ([5eda93e](https://github.com/florent-coulon-deville/suivi-delivery/commit/5eda93e7a56fea02f606f2312ed776842d95444a))
+* Enhance CI workflows with Docker Scout integration for security reporting ([e0a9ea1](https://github.com/florent-coulon-deville/suivi-delivery/commit/e0a9ea1669238a5ae584acc4c17b1a11bfe1b695))
+
 ## [0.6.0](https://github.com/florent-coulon-deville/suivi-delivery/compare/v0.5.0...v0.6.0) (2026-10-23)
 
 

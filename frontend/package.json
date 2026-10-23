@@ -1,7 +1,7 @@
 {
   "name": "suivi-delivery-frontend",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Interface web du suivi de la delivery (Next.js + React + TypeScript)",
   "scripts": {
     "dev": "next dev --port ${PORT:-5173}",
