@@ -4,7 +4,7 @@
 
 **Les images Docker ne sont publiées qu'à la sortie d'une version** (étiquette Git `vX.Y.Z`, posée par release-please quand on fusionne sa PR de version), dans un registre d'images où OpenShift va les chercher : voir § 5.
 
-Fichiers (GitHub Actions) : `.github/workflows/ci-backend.yml`, `ci-frontend.yml`, `ci-docker.yml`, `ci-helm.yml`, `ci-version.yml`, `ci-pr-title.yml` ; versions : `release.yml` (release-please), qui appelle la publication : `publication.yml`.
+Fichiers (GitHub Actions) : `.github/workflows/ci-backend.yml`, `ci-frontend.yml`, `ci-docker.yml`, `ci-helm.yml`, `ci-version.yml`, `ci-pr-title.yml` ; versions : `release.yml` (release-please), qui appelle la publication : `publication.yml` ; snapshots : `snapshot.yml`.
 
 ## 1. Les vérifications
 
@@ -153,6 +153,36 @@ Publication ratée (panne de GitHub…) : onglet *Actions* → « Publication de
 - Point de départ : `0.4.3` dans `.release-please-manifest.json`, et `bootstrap-sha` (le premier commit du dépôt) dans `release-please-config.json` : les commits d'avant ne sont pas relus.
 
 **Le chart Helm n'est plus publié sur GitHub** (décision de l'utilisateur) : il reste vérifié à chaque PR (chart-verifier, § 2), et s'installe depuis le dépôt Git, à l'étiquette de la version. Les versions déjà publiées dans `oci://ghcr.io/florent-coulon-deville/charts/suivi-delivery` y restent.
+
+### Snapshots : les images de chaque branche, à chaque push
+
+Entre deux versions, on veut pouvoir essayer le travail en cours sur un cluster. **À chaque push, sur n'importe quelle branche** (`main` comprise), `snapshot.yml` fabrique les cinq images et les publie dans **ghcr.io seulement** (jamais sur Docker Hub), sous **une étiquette par branche, écrasée à chaque push** :
+
+| Branche | Étiquette des cinq images |
+| --- | --- |
+| `main` | `main-snapshot` |
+| `feat/export-excel` | `feat-export-excel-snapshot` |
+| `Fix/Menu_Saisie` | `fix-menu_saisie-snapshot` (minuscules ; tout caractère interdit devient `-`) |
+
+- **Écrasée** : l'étiquette désigne toujours le dernier état de la branche. Le commit d'où vient l'image est noté dans l'image (`org.opencontainers.image.revision`) : `docker buildx imagetools inspect <image> --format '{{json .Image}}'`, ou `skopeo inspect`.
+- **Une étiquette par branche** : deux branches ne s'écrasent jamais l'une l'autre.
+- **Jamais un numéro de version** : `0.5.0` n'est publiée que par la release (ci-dessus), une seule fois.
+- **Intel/AMD seulement** (`amd64`) : OpenShift et les serveurs. Sur un Mac, kind fabrique ses images en local (`k8s-deploy.zsh`).
+- La vérification « Images Docker » (`ci-docker.yml`, fabrication sans publication sur les PR) est gardée pour l'instant (choix de l'utilisateur).
+- Deux pushes rapprochés sur la même branche : le premier est annulé, seul le dernier est publié.
+
+**Installer un snapshot** avec le chart : donner l'étiquette des cinq images, et `pullPolicy: Always`, sinon un nœud qui a déjà l'ancienne image sous cette étiquette la garde :
+
+```bash
+TAG=feat-export-excel-snapshot
+helm upgrade --install suivi-delivery helm/suivi-delivery -f values-secret.yaml \
+  --set images.backend.tag=$TAG --set images.frontend.tag=$TAG --set images.liquibase.tag=$TAG \
+  --set images.keycloak.tag=$TAG --set images.postgresql.tag=$TAG --set images.pullPolicy=Always
+```
+
+Pour qu'un Deployment reprenne une image écrasée, le relancer : `kubectl rollout restart deployment/<nom>`.
+
+**À prévoir** : une image écrasée perd son étiquette mais reste stockée dans ghcr.io, de même que l'étiquette d'une branche supprimée. Un nettoyage régulier sera à ajouter.
 
 ### Deux types de processeurs : Intel/AMD et ARM
 

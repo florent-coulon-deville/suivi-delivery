@@ -1,0 +1,92 @@
+# Snapshots : à chaque push, sur n'importe quelle branche, les cinq images sont fabriquées et
+# publiées dans ghcr.io (jamais sur Docker Hub), sous UNE étiquette par branche, écrasée à chaque
+# fois : on a toujours le dernier état de la branche, pour l'essayer sur un cluster.
+#
+#   main               →  ghcr.io/<propriétaire>/suivi-delivery-backend:main-snapshot
+#   feat/export-excel  →  ghcr.io/<propriétaire>/suivi-delivery-backend:feat-export-excel-snapshot
+#
+# Une étiquette de snapshot ne ressemble jamais à une version (0.5.0) : les versions sont
+# publiées par release.yml / publication.yml, et ne sont jamais écrasées.
+# Intel/AMD (amd64) seulement : c'est ce qu'utilisent OpenShift et les serveurs (sur un Mac, kind
+# fabrique ses images en local). Les images écrasées restent stockées sans étiquette : nettoyage
+# à prévoir. Voir docs/ci.md § 5.
+#
+# Actions figées par leur empreinte de commit (version en commentaire). Voir docs/ci.md.
+name: Snapshot des images
+
+on:
+  push:
+    branches: ["**"]
+
+permissions:
+  contents: read
+
+# Deux pushes rapprochés sur la même branche : seul le dernier compte, l'étiquette serait écrasée.
+concurrency:
+  group: snapshot-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tag:
+    name: Calculer l'étiquette
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    outputs:
+      image: ${{ steps.tag.outputs.image }}
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      # Nom de la branche passé par une variable d'environnement, jamais écrit dans le script
+      # (il pourrait contenir des commandes). Une étiquette Docker n'accepte que lettres,
+      # chiffres, « . », « _ », « - » (128 caractères au plus) : le reste devient « - ».
+      - name: Étiquette de la branche
+        id: tag
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          slug=$(printf '%s' "$BRANCH" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]+/-/g; s/^[-.]+//; s/-+$//' | cut -c1-110)
+          echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+          echo "tag=$slug-snapshot" >> "$GITHUB_OUTPUT"
+          echo "Branche $BRANCH → étiquette $slug-snapshot"
+
+  publish:
+    name: Snapshot ${{ matrix.part }}
+    needs: tag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write  # publier dans ghcr.io (jeton du dépôt, rien à créer)
+    strategy:
+      fail-fast: false  # une image cassée n'empêche pas de publier les autres
+      matrix:
+        part: [backend, frontend, liquibase, keycloak, postgres]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+      # Connexions faites par Docker lui-même : les jetons ne sont confiés à aucune action tierce.
+      - name: Connexion à ghcr.io
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      - name: Connexion à dhi.io
+        env:
+          DHI_USERNAME: ${{ secrets.DHI_USERNAME }}
+          DHI_TOKEN: ${{ secrets.DHI_TOKEN }}
+        run: echo "$DHI_TOKEN" | docker login dhi.io --username "$DHI_USERNAME" --password-stdin
+      - name: Fabriquer et publier le snapshot ${{ matrix.part }}
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: ${{ matrix.part }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ needs.tag.outputs.image }}/suivi-delivery-${{ matrix.part }}:${{ needs.tag.outputs.tag }}
+          # « revision » dit de quel commit vient l'image (l'étiquette, elle, ne le dit pas).
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.tag.outputs.tag }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.title=suivi-delivery-${{ matrix.part }}
+          cache-from: type=gha,scope=${{ matrix.part }}
+          cache-to: type=gha,scope=${{ matrix.part }},mode=max
