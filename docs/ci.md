@@ -2,9 +2,9 @@
 
 À chaque pull request vers `main`, et à chaque fusion dans `main`, le code est vérifié automatiquement : les mêmes contrôles que sur votre poste. **Rien n'est déployé** : pas de déploiement continu (CD) pour l'instant.
 
-**Les images Docker ne sont publiées qu'à la sortie d'une version** (étiquette Git `vX.Y.Z`), dans un registre d'images où OpenShift va les chercher : voir § 6.
+**Les images Docker ne sont publiées qu'à la sortie d'une version** (étiquette Git `vX.Y.Z`, posée par release-please quand on fusionne sa PR de version), dans un registre d'images où OpenShift va les chercher : voir § 5.
 
-Fichiers (GitHub Actions) : `.github/workflows/ci-backend.yml`, `ci-frontend.yml`, `ci-docker.yml`, `ci-helm.yml`, `ci-version.yml` ; publication : `publication.yml`.
+Fichiers (GitHub Actions) : `.github/workflows/ci-backend.yml`, `ci-frontend.yml`, `ci-docker.yml`, `ci-helm.yml`, `ci-version.yml`, `ci-commits.yml` ; versions : `release.yml` (release-please), qui appelle la publication : `publication.yml`.
 
 ## 1. Les vérifications
 
@@ -17,6 +17,8 @@ Chacune ne se lance que si les fichiers qui la concernent ont changé.
 | **Frontend** | `frontend/` | `npm ci --ignore-scripts`, `npm run typecheck`, `npm run build` |
 | **Images Docker** | `backend/`, `frontend/`, `liquibase/`, `keycloak/`, `postgres/` | prépare ce que les images copient (dépendances du backend, site du frontend, ), puis construit les cinq images (backend, frontend, Liquibase, Keycloak, PostgreSQL), **sans les publier** : un Dockerfile cassé se voit tout de suite |
 | **Chart Helm** | `helm/suivi-delivery/` | **chart-verifier de Red Hat**, profil `developer-console` (voir ci-dessous) |
+| **Version unique** | fichiers de version (`pyproject.toml`, `uv.lock`, `package.json`, `package-lock.json`, `Chart.yaml`) | `cicd/check_versions.py` : le même numéro partout |
+| **Messages de commit** | toujours (chaque PR) | chaque commit de la PR suit Conventional Commits (`feat: …`, `fix: …`), dont release-please déduit la version (§ 5) ; les commits de fusion sont ignorés |
 
 Modifier le fichier de CI lui-même relance la vérification concernée.
 
@@ -48,6 +50,7 @@ Toujours l'empreinte **complète** (40 caractères), jamais une version abrégé
 | `actions/setup-node` | v7.0.0 (Node 26, comme l'image du frontend) | `820762786026740c76f36085b0efc47a31fe5020` | GitHub |
 | `docker/setup-buildx-action` | v4.4.1 | `f87e5991a6d7451dcb8d9637bfbc97413f497069` | Docker |
 | `docker/build-push-action` | v7.4.0 | `c3c9e263c25d99ce0380d002d59b67737d91b0dc` | Docker |
+| `googleapis/release-please-action` | v5.0.0 (release-please 17.6.0, Node 24) | `45996ed1f6d02564a971a2fa1b5860e934307cf7` | Google |
 
 Le chart Helm n'utilise pas d'action : la vérification lance directement l'image de Red Hat (`quay.io/redhat-certification/chart-verifier:1.16.0`).
 
@@ -89,7 +92,8 @@ docker run --rm -v "$PWD/helm/suivi-delivery:/charts/suivi-delivery:ro" quay.io/
 - **Droits minimaux.** GitHub : `permissions: contents: read`, la CI ne peut que lire le code ; `persist-credentials: false`, le jeton n'est pas gardé après la récupération du code.
 - **Deux secrets à créer sur GitHub** (Settings → Secrets and variables → Actions) : `DHI_USERNAME` (identifiant Docker Hub) et `DHI_TOKEN` (jeton d'accès personnel Docker, en lecture seule). Ils servent seulement à télécharger les images de base durcies (`dhi.io`) ; `docker login` s'en sert directement, aucune action tierce ne les voit. Les PR venant d'un fork n'y ont pas accès : leur fabrication d'images échoue.
 - La publication utilise le jeton fourni automatiquement à chaque exécution (`GITHUB_TOKEN`, avec le droit `packages: write` pour ce seul job). Il expire à la fin de l'exécution, et n'est **confié à aucune action tierce** : c'est `docker login` qui s'en sert, directement.
-- **Publication seulement sur une étiquette de version**, jamais depuis une PR : le code d'une PR ne peut pas publier d'image.
+- **Publication seulement à la création d'une version** (fusion de la PR de version de release-please sur `main`), ou à la main pour une étiquette existante ; jamais depuis une PR : le code d'une PR ne peut pas publier d'image.
+- **release-please** n'a que les droits du job `release-please` de `release.yml` (`contents`, `pull-requests`, `issues` en écriture), avec le jeton `GITHUB_TOKEN` de l'exécution ; aucun jeton personnel.
 - **Aucun script de paquet n'est exécuté** pendant l'installation (`npm ci --ignore-scripts`), comme dans les images Docker.
 - **SonarCloud** (service qui analyse la qualité du code) n'est pas dans ces workflows. Il utilise son **analyse automatique** (application GitHub de SonarSource), qui contrôle les PR et `main`.
   - Pour voir les problèmes plus tôt, avant même le commit, l'extension VS Code *SonarQube for IDE* applique les mêmes règles dans l'éditeur (voir README.md, « Dans VS Code »).
@@ -111,22 +115,42 @@ OpenShift ne fabrique pas les images : il les télécharge dans un **registre d'
 | --- | --- | --- |
 | GitHub Container Registry | `ghcr.io/artenola/suivi-delivery-backend:<version>`, `…-frontend:<version>`, `…-liquibase:<version>`, `…-keycloak:<version>`, `…-postgres:<version>` | pas publié : dossier `helm/suivi-delivery` du dépôt Git, à l'étiquette `v<version>` |
 
-### Sortir une version
+### Sortir une version : release-please
 
-1. Sur une branche, passer le nouveau numéro **partout à la fois** (version unique) : `backend/pyproject.toml`, `frontend/package.json` et `package-lock.json`, `helm/suivi-delivery/Chart.yaml` (`version` et `appVersion`). La CI « Version unique » vérifie qu'ils sont égaux. Faire la PR, la fusionner.
-2. Sur `main` à jour, poser l'étiquette et la pousser :
+Le numéro de version est géré par **release-please** (outil de Google, action `googleapis/release-please-action`, workflow `release.yml`). On ne change plus jamais le numéro à la main.
 
-   ```bash
-   git switch main && git pull
-   git tag v0.3.1
-   git push origin v0.3.1
-   ```
+**1. Écrire les messages de commit selon Conventional Commits.** release-please en déduit la prochaine version :
 
-3. La publication se lance toute seule (onglet *Actions*, « Publication des images »). Elle :
+| Début du message | Sens | Effet sur la version (avant la 1.0) |
+| --- | --- | --- |
+| `fix: …` | correction | `0.5.0` → `0.5.1` |
+| `feat: …` | nouveauté | `0.5.0` → `0.6.0` |
+| `feat!: …`, `fix!: …` (ou ligne `BREAKING CHANGE: …` dans le message) | change ce qui existait (API, données…) | `0.5.0` → `0.6.0` (avant la 1.0 : `bump-minor-pre-major`) ; `1.2.0` → `2.0.0` après |
+| `docs:`, `refactor:`, `test:`, `build:`, `ci:`, `chore:`, `style:`, `perf:`, `revert:` | le reste | pas de nouvelle version à elle seule (`perf` et `revert` apparaissent dans le journal) |
+
+Une précision facultative entre parenthèses : `fix(frontend): …`, `feat(api): …`. Le texte après les deux-points reste en français. La CI « Messages de commit » (`ci-commits.yml`) refuse une PR dont un commit ne suit pas la règle (corriger : [git.md § 1](git.md#1-la-façon-de-travailler)).
+
+**2. Fusionner les PR comme d'habitude.** À chaque fusion sur `main`, release-please ouvre ou met à jour **une PR de version**, intitulée « chore: version X.Y.Z », qui :
+- change le numéro **partout à la fois** (`release-please-config.json`, rubrique `extra-files`) : `backend/pyproject.toml`, `backend/uv.lock`, `frontend/package.json`, `frontend/package-lock.json` (deux endroits), `helm/suivi-delivery/Chart.yaml` (`version` et `appVersion`, repérées par le commentaire `# x-release-please-version`) ;
+- complète **`CHANGELOG.md`** (rubriques « Nouveautés », « Corrections », etc.) ;
+- note la nouvelle version dans `.release-please-manifest.json` (la dernière version sortie, point de départ du calcul).
+
+Cette PR attend : on peut fusionner plusieurs PR, elle se met à jour à chaque fois.
+
+**3. Sortir la version = fusionner la PR de version.** release-please pose alors l'étiquette `vX.Y.Z`, crée la *Release* GitHub (avec le journal), puis `release.yml` lance la **publication des images** (`publication.yml`). Elle :
    - vérifie que l'étiquette est égale à la version unique, sinon s'arrête ;
-   - **refuse de republier une version existante** : une image publiée ne change jamais. Pour corriger, on sort une nouvelle version (`0.3.1`) ;
+   - **refuse de republier une version existante** : une image publiée ne change jamais. Pour corriger, on sort une nouvelle version (un `fix:`) ;
    - fabrique les cinq images (backend, frontend, Liquibase, Keycloak, PostgreSQL) à partir d'images de base à jour, et les publie. **Jamais d'étiquette `latest`** : on sait toujours quelle version tourne.
    - fabrique chaque image **pour deux types de processeurs** (voir ci-dessous).
+
+Publication ratée (panne de GitHub…) : onglet *Actions* → « Publication des images » → *Run workflow*, en donnant l'étiquette (`v0.5.0`).
+
+**À savoir :**
+- **Réglage du dépôt requis**, une fois : *Settings* → *Actions* → *General* → *Workflow permissions* → cocher « Allow GitHub Actions to create and approve pull requests ». Sans lui, release-please ne peut pas ouvrir sa PR.
+- La PR de version est ouverte avec le jeton de la CI (`GITHUB_TOKEN`) : GitHub n'y lance **aucune vérification** (il évite ainsi les boucles). Elle ne change que des numéros et le journal ; si des vérifications deviennent obligatoires (§ 4), les lancer en fermant puis rouvrant la PR.
+- Pour la même raison, l'étiquette posée par release-please ne lance aucun workflow : c'est `release.yml` qui appelle la publication, dans la même exécution.
+- **Forcer un numéro** (par exemple passer en `1.0.0`) : un commit dont le message contient la ligne `Release-As: 1.0.0`.
+- Point de départ : `0.4.3` dans `.release-please-manifest.json`, et `bootstrap-sha` (le premier commit du dépôt) dans `release-please-config.json` : les commits d'avant ne sont pas relus.
 
 **Le chart Helm n'est plus publié sur GitHub** (décision de l'utilisateur) : il reste vérifié à chaque PR (chart-verifier, § 2), et s'installe depuis le dépôt Git, à l'étiquette de la version. Les versions déjà publiées dans `oci://ghcr.io/artenola/charts/suivi-delivery` y restent.
 

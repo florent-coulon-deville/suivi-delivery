@@ -115,6 +115,8 @@ suivi-delivery/
 │   └── lib/                accès à l'API (côté serveur), calcul de l'état, types
 ├── cicd/                   outils de la CI (voir docs/ci.md)
 │   └── check_versions.py   vérifie que backend, frontend et chart ont le même numéro
+├── release-please-config.json  versions automatiques : fichiers où release-please change le numéro (docs/ci.md § 5)
+├── CHANGELOG.md            journal des versions, tenu par release-please
 ├── helm/suivi-delivery/    le chart Helm : la recette d'installation sur un cluster
 ├── bruno/                  appels d'API prêts à l'emploi pour l'outil Bruno
 ├── .vscode/                réglages et extensions VS Code du projet

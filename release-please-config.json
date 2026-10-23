@@ -1,0 +1,38 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/v17.6.0/schemas/config.json",
+  "bootstrap-sha": "467dd7bedc7bed49a4bb47ac03e564b0eec8241d",
+  "pull-request-title-pattern": "chore: version ${version}",
+  "pull-request-header": "Nouvelle version de l'application, préparée par release-please. La fusionner pose l'étiquette, crée la Release GitHub et publie les images.",
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "include-component-in-tag": false,
+      "bump-minor-pre-major": true,
+      "changelog-sections": [
+        { "type": "feat", "section": "Nouveautés" },
+        { "type": "fix", "section": "Corrections" },
+        { "type": "perf", "section": "Performances" },
+        { "type": "revert", "section": "Retours en arrière" },
+        { "type": "docs", "section": "Documentation", "hidden": true },
+        { "type": "refactor", "section": "Réorganisation du code", "hidden": true },
+        { "type": "test", "section": "Tests", "hidden": true },
+        { "type": "build", "section": "Fabrication", "hidden": true },
+        { "type": "ci", "section": "CI", "hidden": true },
+        { "type": "chore", "section": "Divers", "hidden": true },
+        { "type": "style", "section": "Mise en forme", "hidden": true }
+      ],
+      "extra-files": [
+        { "type": "toml", "path": "backend/pyproject.toml", "jsonpath": "$.project.version" },
+        {
+          "type": "toml",
+          "path": "backend/uv.lock",
+          "jsonpath": "$.package[?(@.name.value=='suivi-delivery-backend')].version"
+        },
+        { "type": "json", "path": "frontend/package.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "frontend/package-lock.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "frontend/package-lock.json", "jsonpath": "$.packages[''].version" },
+        { "type": "generic", "path": "helm/suivi-delivery/Chart.yaml" }
+      ]
+    }
+  }
+}

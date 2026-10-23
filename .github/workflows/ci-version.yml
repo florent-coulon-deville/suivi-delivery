@@ -1,5 +1,5 @@
 # CI de la version : toute l'application a un seul numéro de version, partout le même
-# (backend, frontend, chart Helm). Voir cicd/check_versions.py et docs/deploiement.md.
+# (backend, frontend, chart Helm). Voir cicd/check_versions.py et docs/ci.md § 5.
 name: CI version
 
 on:
@@ -7,6 +7,7 @@ on:
     branches: [main]
     paths:
       - backend/pyproject.toml
+      - backend/uv.lock
       - frontend/package.json
       - frontend/package-lock.json
       - helm/suivi-delivery/Chart.yaml
@@ -16,6 +17,7 @@ on:
     branches: [main]
     paths:
       - backend/pyproject.toml
+      - backend/uv.lock
       - frontend/package.json
       - frontend/package-lock.json
       - helm/suivi-delivery/Chart.yaml
