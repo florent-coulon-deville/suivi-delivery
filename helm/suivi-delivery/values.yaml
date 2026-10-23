@@ -14,7 +14,7 @@ images:
   # Registre placé devant le nom de chaque image (<registre>/<depot>:<étiquette>).
   # Autre registre : ex. registry.example.com/delivery.
   # Vide : noms courts, pour des images chargées à la main sur le nœud (kind, voir k8s-deploy.zsh).
-  registry: ghcr.io/artenola
+  registry: ghcr.io/florent-coulon-deville
   backend:
     repository: suivi-delivery-backend
     tag: ""                   # vide : la version du chart

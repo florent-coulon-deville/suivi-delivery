@@ -1,0 +1,42 @@
+# CI du titre de la PR : il doit suivre Conventional Commits (« feat: … », « fix(api): … »).
+# Les PR sont fusionnées en squash (docs/git.md) : un seul commit sur main, qui porte le titre
+# de la PR, et dont release-please déduit la prochaine version (release.yml). Les messages des
+# commits de la branche, eux, sont libres. Voir docs/git.md et docs/ci.md § 5.
+#
+# Vérifié dans le shell, sans action tierce. Le titre est passé par une variable
+# d'environnement, jamais écrit dans le script (il pourrait contenir des commandes).
+# Relancé quand on modifie le titre (« edited »).
+name: CI titre de la PR
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-pr-title-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  title:
+    name: Titre de la PR (Conventional Commits)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Vérifier le titre
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(feat|fix|perf|revert|docs|refactor|test|build|ci|chore|style)(\([a-z0-9-]+\))?!?: .+'
+          if [[ "$TITLE" =~ $pattern ]]; then
+            echo "Titre correct : $TITLE"
+          else
+            echo "::error::Titre « $TITLE » refusé : il doit commencer par un type suivi de « : »."
+            echo "Exemples : « feat: export Excel », « fix(frontend): menu Saisie », « feat!: … » si l'existant casse."
+            echo "Types : feat (nouveauté), fix (correction), perf, revert, docs, refactor, test, build, ci, chore, style."
+            echo "Corriger le titre de la PR sur GitHub : la vérification se relance toute seule."
+            exit 1
+          fi

@@ -6,11 +6,11 @@
 [![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=artenola-suivi-delivery&metric=duplicated_lines_density&token=6fcacb24d8182a8196087e6ddbbe38ce36c459da)](https://sonarcloud.io/summary/new_code?id=artenola-suivi-delivery)
 [![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=artenola-suivi-delivery&metric=ncloc&token=6fcacb24d8182a8196087e6ddbbe38ce36c459da)](https://sonarcloud.io/summary/new_code?id=artenola-suivi-delivery)
 
-[![CI backend](https://github.com/Artenola/suivi-delivery/actions/workflows/ci-backend.yml/badge.svg?branch=main)](https://github.com/Artenola/suivi-delivery/actions/workflows/ci-backend.yml)
-[![CI frontend](https://github.com/Artenola/suivi-delivery/actions/workflows/ci-frontend.yml/badge.svg?branch=main)](https://github.com/Artenola/suivi-delivery/actions/workflows/ci-frontend.yml)
-[![CI images Docker](https://github.com/Artenola/suivi-delivery/actions/workflows/ci-docker.yml/badge.svg?branch=main)](https://github.com/Artenola/suivi-delivery/actions/workflows/ci-docker.yml)
-[![CI chart Helm](https://github.com/Artenola/suivi-delivery/actions/workflows/ci-helm.yml/badge.svg?branch=main)](https://github.com/Artenola/suivi-delivery/actions/workflows/ci-helm.yml)
-[![CI version](https://github.com/Artenola/suivi-delivery/actions/workflows/ci-version.yml/badge.svg?branch=main)](https://github.com/Artenola/suivi-delivery/actions/workflows/ci-version.yml)
+[![CI backend](https://github.com/florent-coulon-deville/suivi-delivery/actions/workflows/ci-backend.yml/badge.svg?branch=main)](https://github.com/florent-coulon-deville/suivi-delivery/actions/workflows/ci-backend.yml)
+[![CI frontend](https://github.com/florent-coulon-deville/suivi-delivery/actions/workflows/ci-frontend.yml/badge.svg?branch=main)](https://github.com/florent-coulon-deville/suivi-delivery/actions/workflows/ci-frontend.yml)
+[![CI images Docker](https://github.com/florent-coulon-deville/suivi-delivery/actions/workflows/ci-docker.yml/badge.svg?branch=main)](https://github.com/florent-coulon-deville/suivi-delivery/actions/workflows/ci-docker.yml)
+[![CI chart Helm](https://github.com/florent-coulon-deville/suivi-delivery/actions/workflows/ci-helm.yml/badge.svg?branch=main)](https://github.com/florent-coulon-deville/suivi-delivery/actions/workflows/ci-helm.yml)
+[![CI version](https://github.com/florent-coulon-deville/suivi-delivery/actions/workflows/ci-version.yml/badge.svg?branch=main)](https://github.com/florent-coulon-deville/suivi-delivery/actions/workflows/ci-version.yml)
 
 Application de suivi des mises en production (MEP). Elle répond à la question : **qu'est-ce qui est installé, où, en quelle version, avec quels paramètres ?**
 
@@ -19,7 +19,7 @@ Elle sert à deux choses :
 - **déclarer ce qui est installé** (fait) ;
 - **prévoir les installations futures** (à venir).
 
-Nom technique du projet : `suivi-delivery` (dépôt GitHub `Artenola/suivi-delivery`).
+Nom technique du projet : `suivi-delivery` (dépôt GitHub `florent-coulon-deville/suivi-delivery`).
 
 ## Les mots à connaître
 

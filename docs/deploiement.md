@@ -172,7 +172,7 @@ Pour limiter les failles de sécurité :
   - PostgreSQL : l'image durcie ne sait pas tourner avec un utilisateur au hasard ; notre point d'entrée (`postgres/start.sh`) le déclare au système à chaque démarrage (dans `/tmp/passwd`, vers lequel renvoie `/etc/passwd`). Ailleurs (kind), le chart le lance avec son utilisateur `postgres` (70).
 - **Changer de version majeure se décide à la main**, après un essai : Debian 14 (forky) vers 2027, une nouvelle version de Python ou de Node.js.
 
-**Publication** : pour OpenShift, les images sont publiées par la CI dans un registre (`ghcr.io/artenola/…` sur GitHub), à la sortie de chaque version (étiquette Git `vX.Y.Z`). Voir [docs/ci.md § 5](ci.md#5-publier-les-images--sortir-une-version).
+**Publication** : pour OpenShift, les images sont publiées par la CI dans un registre (`ghcr.io/florent-coulon-deville/…` sur GitHub), à la sortie de chaque version (étiquette Git `vX.Y.Z`). Voir [docs/ci.md § 5](ci.md#5-publier-les-images--sortir-une-version).
 
 ## 7. Tester avec Docker sur son poste
 
@@ -394,9 +394,9 @@ docker run -d --name suivi-delivery-frontend-local --network suivi-delivery-loca
 Ou avec les images publiées sur GitHub (ghcr.io), par exemple en version 0.4.2 :
 
 ```zsh
-docker run --rm --network suivi-delivery-local --env-file deployment/docker.env ghcr.io/artenola/suivi-delivery-liquibase:0.4.2
-docker run -d --name suivi-delivery-backend-local --network suivi-delivery-local -p 8000:8000 --env-file deployment/docker.env ghcr.io/artenola/suivi-delivery-backend:0.4.2
-docker run -d --name suivi-delivery-frontend-local --network suivi-delivery-local -p 8080:8080 --env-file deployment/docker.env ghcr.io/artenola/suivi-delivery-frontend:0.4.2
+docker run --rm --network suivi-delivery-local --env-file deployment/docker.env ghcr.io/florent-coulon-deville/suivi-delivery-liquibase:0.4.2
+docker run -d --name suivi-delivery-backend-local --network suivi-delivery-local -p 8000:8000 --env-file deployment/docker.env ghcr.io/florent-coulon-deville/suivi-delivery-backend:0.4.2
+docker run -d --name suivi-delivery-frontend-local --network suivi-delivery-local -p 8080:8080 --env-file deployment/docker.env ghcr.io/florent-coulon-deville/suivi-delivery-frontend:0.4.2
 ```
 
 | Option | Signification |
@@ -592,7 +592,7 @@ Deux façons, qui installent exactement la même chose (le chart Helm du projet)
 | Quoi | Où |
 | --- | --- |
 | le chart | le dossier `helm/suivi-delivery` du dépôt Git, à l'étiquette `v<version>` |
-| les images | `ghcr.io/artenola/suivi-delivery-{backend,frontend,liquibase,keycloak,postgres}:<version>` |
+| les images | `ghcr.io/florent-coulon-deville/suivi-delivery-{backend,frontend,liquibase,keycloak,postgres}:<version>` |
 
 Le chart d'une version installe les images **de la même version**, et va les chercher seul dans ce registre (`images.registry`). On ne choisit donc qu'un numéro : celui de l'étiquette.
 
@@ -602,7 +602,7 @@ Les exemples visent l'instance CRC (OpenShift Local) dans l'espace de noms `suiv
 
 ```bash
 VERSION=0.4.3
-git clone --branch v$VERSION --depth 1 https://github.com/Artenola/suivi-delivery.git suivi-delivery-$VERSION
+git clone --branch v$VERSION --depth 1 https://github.com/florent-coulon-deville/suivi-delivery.git suivi-delivery-$VERSION
 CHART=./suivi-delivery-$VERSION/helm/suivi-delivery
 ```
 
@@ -695,7 +695,7 @@ Récupérer le chart de la nouvelle version, puis la **même commande qu'à l'é
 
 ```bash
 VERSION=0.4.4
-git clone --branch v$VERSION --depth 1 https://github.com/Artenola/suivi-delivery.git suivi-delivery-$VERSION
+git clone --branch v$VERSION --depth 1 https://github.com/florent-coulon-deville/suivi-delivery.git suivi-delivery-$VERSION
 CHART=./suivi-delivery-$VERSION/helm/suivi-delivery
 helm upgrade --install suivi-delivery $CHART \
   -n suivi-delivery -f values-secret.yaml -f values-crc.yaml --wait --timeout 10m
@@ -778,7 +778,7 @@ Sur OpenShift, `oc login` crée ce contexte et le rend courant. kind crée le si
 | `--context <name>` | le cluster visé | le contexte kubectl en cours |
 | `--namespace <name>` | l'espace de noms (namespace) | `suivi-delivery` |
 | `--values <file>` | un fichier de valeurs Helm en plus : les réglages de cette instance (nom affiché, Route, base fournie…), par exemple `helm/suivi-delivery/values-crc.yaml`. Peut être répétée | aucun |
-| `--registry <url>` | où le cluster télécharge les images (hors kind) : donné au chart (`images.registry`) | `ghcr.io/artenola` |
+| `--registry <url>` | où le cluster télécharge les images (hors kind) : donné au chart (`images.registry`) | `ghcr.io/florent-coulon-deville` |
 | `--yes` | ne pas demander confirmation (hors kind) | demande |
 | `--reset` | supprime d'abord le cluster (kind seulement) | non |
 | `--podman` | Podman au lieu de Docker : kind tourne sur Podman, et Podman fabrique les images ; hors kind, il vérifie seulement que les images sont publiées | Docker |

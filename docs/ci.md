@@ -4,7 +4,7 @@
 
 **Les images Docker ne sont publiées qu'à la sortie d'une version** (étiquette Git `vX.Y.Z`, posée par release-please quand on fusionne sa PR de version), dans un registre d'images où OpenShift va les chercher : voir § 5.
 
-Fichiers (GitHub Actions) : `.github/workflows/ci-backend.yml`, `ci-frontend.yml`, `ci-docker.yml`, `ci-helm.yml`, `ci-version.yml`, `ci-commits.yml` ; versions : `release.yml` (release-please), qui appelle la publication : `publication.yml`.
+Fichiers (GitHub Actions) : `.github/workflows/ci-backend.yml`, `ci-frontend.yml`, `ci-docker.yml`, `ci-helm.yml`, `ci-version.yml`, `ci-pr-title.yml` ; versions : `release.yml` (release-please), qui appelle la publication : `publication.yml`.
 
 ## 1. Les vérifications
 
@@ -18,7 +18,7 @@ Chacune ne se lance que si les fichiers qui la concernent ont changé.
 | **Images Docker** | `backend/`, `frontend/`, `liquibase/`, `keycloak/`, `postgres/` | prépare ce que les images copient (dépendances du backend, site du frontend, ), puis construit les cinq images (backend, frontend, Liquibase, Keycloak, PostgreSQL), **sans les publier** : un Dockerfile cassé se voit tout de suite |
 | **Chart Helm** | `helm/suivi-delivery/` | **chart-verifier de Red Hat**, profil `developer-console` (voir ci-dessous) |
 | **Version unique** | fichiers de version (`pyproject.toml`, `uv.lock`, `package.json`, `package-lock.json`, `Chart.yaml`) | `cicd/check_versions.py` : le même numéro partout |
-| **Messages de commit** | toujours (chaque PR) | chaque commit de la PR suit Conventional Commits (`feat: …`, `fix: …`), dont release-please déduit la version (§ 5) ; les commits de fusion sont ignorés |
+| **Titre de la PR** | toujours (chaque PR, et à chaque changement de titre) | le titre suit Conventional Commits (`feat: …`, `fix: …`) : fusionnée en squash, la PR devient un commit qui porte ce titre, dont release-please déduit la version (§ 5) |
 
 Modifier le fichier de CI lui-même relance la vérification concernée.
 
@@ -113,13 +113,13 @@ OpenShift ne fabrique pas les images : il les télécharge dans un **registre d'
 
 | Registre | Images | Chart Helm |
 | --- | --- | --- |
-| GitHub Container Registry | `ghcr.io/artenola/suivi-delivery-backend:<version>`, `…-frontend:<version>`, `…-liquibase:<version>`, `…-keycloak:<version>`, `…-postgres:<version>` | pas publié : dossier `helm/suivi-delivery` du dépôt Git, à l'étiquette `v<version>` |
+| GitHub Container Registry | `ghcr.io/florent-coulon-deville/suivi-delivery-backend:<version>`, `…-frontend:<version>`, `…-liquibase:<version>`, `…-keycloak:<version>`, `…-postgres:<version>` | pas publié : dossier `helm/suivi-delivery` du dépôt Git, à l'étiquette `v<version>` |
 
 ### Sortir une version : release-please
 
 Le numéro de version est géré par **release-please** (outil de Google, action `googleapis/release-please-action`, workflow `release.yml`). On ne change plus jamais le numéro à la main.
 
-**1. Écrire les messages de commit selon Conventional Commits.** release-please en déduit la prochaine version :
+**1. Donner aux PR un titre selon Conventional Commits.** Les PR sont fusionnées en squash ([git.md § 1](git.md#1-la-façon-de-travailler)) : chacune devient un seul commit sur `main`, qui porte son titre. release-please lit ces commits et en déduit la prochaine version :
 
 | Début du message | Sens | Effet sur la version (avant la 1.0) |
 | --- | --- | --- |
@@ -128,7 +128,7 @@ Le numéro de version est géré par **release-please** (outil de Google, action
 | `feat!: …`, `fix!: …` (ou ligne `BREAKING CHANGE: …` dans le message) | change ce qui existait (API, données…) | `0.5.0` → `0.6.0` (avant la 1.0 : `bump-minor-pre-major`) ; `1.2.0` → `2.0.0` après |
 | `docs:`, `refactor:`, `test:`, `build:`, `ci:`, `chore:`, `style:`, `perf:`, `revert:` | le reste | pas de nouvelle version à elle seule (`perf` et `revert` apparaissent dans le journal) |
 
-Une précision facultative entre parenthèses : `fix(frontend): …`, `feat(api): …`. Le texte après les deux-points reste en français. La CI « Messages de commit » (`ci-commits.yml`) refuse une PR dont un commit ne suit pas la règle (corriger : [git.md § 1](git.md#1-la-façon-de-travailler)).
+Une précision facultative entre parenthèses : `fix(frontend): …`, `feat(api): …`. Le texte après les deux-points reste en français. La CI « Titre de la PR » (`ci-pr-title.yml`) refuse un titre qui ne suit pas la règle : le corriger sur GitHub suffit, la vérification se relance. Les messages des commits de la branche sont libres.
 
 **2. Fusionner les PR comme d'habitude.** À chaque fusion sur `main`, release-please ouvre ou met à jour **une PR de version**, intitulée « chore: version X.Y.Z », qui :
 - change le numéro **partout à la fois** (`release-please-config.json`, rubrique `extra-files`) : `backend/pyproject.toml`, `backend/uv.lock`, `frontend/package.json`, `frontend/package-lock.json` (deux endroits), `helm/suivi-delivery/Chart.yaml` (`version` et `appVersion`, repérées par le commentaire `# x-release-please-version`) ;
@@ -152,7 +152,7 @@ Publication ratée (panne de GitHub…) : onglet *Actions* → « Publication de
 - **Forcer un numéro** (par exemple passer en `1.0.0`) : un commit dont le message contient la ligne `Release-As: 1.0.0`.
 - Point de départ : `0.4.3` dans `.release-please-manifest.json`, et `bootstrap-sha` (le premier commit du dépôt) dans `release-please-config.json` : les commits d'avant ne sont pas relus.
 
-**Le chart Helm n'est plus publié sur GitHub** (décision de l'utilisateur) : il reste vérifié à chaque PR (chart-verifier, § 2), et s'installe depuis le dépôt Git, à l'étiquette de la version. Les versions déjà publiées dans `oci://ghcr.io/artenola/charts/suivi-delivery` y restent.
+**Le chart Helm n'est plus publié sur GitHub** (décision de l'utilisateur) : il reste vérifié à chaque PR (chart-verifier, § 2), et s'installe depuis le dépôt Git, à l'étiquette de la version. Les versions déjà publiées dans `oci://ghcr.io/florent-coulon-deville/charts/suivi-delivery` y restent.
 
 ### Deux types de processeurs : Intel/AMD et ARM
 
@@ -170,7 +170,7 @@ On utilise toujours `<version>` (sans suffixe) : `docker pull`, comme OpenShift,
 Vérifier, après connexion à `ghcr.io` (`docker login ghcr.io`, avec un jeton `read:packages`) :
 
 ```bash
-docker buildx imagetools inspect ghcr.io/artenola/suivi-delivery-backend:0.3.1
+docker buildx imagetools inspect ghcr.io/florent-coulon-deville/suivi-delivery-backend:0.3.1
 ```
 
 La réponse doit lister `linux/amd64` et `linux/arm64`.

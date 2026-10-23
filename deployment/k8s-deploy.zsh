@@ -18,7 +18,7 @@
 #   --namespace <nom>    l'espace de noms (namespace) ; défaut : suivi-delivery
 #   --values <fichier>   un fichier de valeurs Helm en plus (réglages du cluster) ; répétable
 #   --registry <adresse> d'où le cluster télécharge les images (hors kind) ;
-#                        défaut : ghcr.io/artenola (images publiées par la CI)
+#                        défaut : ghcr.io/florent-coulon-deville (images publiées par la CI)
 #   --yes                ne pas demander confirmation avant d'installer (hors kind)
 #   --reset              kind seulement : supprime d'abord le cluster, on repart de zéro
 #   --podman             Podman au lieu de Docker : kind tourne sur Podman, les images sont fabriquées
@@ -120,7 +120,7 @@ else
     || fail "Contexte kubectl inconnu : $CONTEXT (voir : kubectl config get-contexts)."
 fi
 ok "Outils présents ; version de l'application : $VERSION${${KIND:#false}:+ ; kind sur $ENGINE}"
-[[ -n $REGISTRY ]] || REGISTRY=ghcr.io/artenola
+[[ -n $REGISTRY ]] || REGISTRY=ghcr.io/florent-coulon-deville
 
 # Toutes les commandes visent ce contexte, et seulement lui.
 K=(kubectl --context $CONTEXT)

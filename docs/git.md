@@ -4,13 +4,8 @@
 
 - **`main`** contient la version validée. On ne travaille jamais directement dessus.
 - Chaque chantier a **sa branche** (`feat/docker`, `feat/nextjs`…), puis une **pull request (PR)** sur GitHub. La PR est relue, vérifiée par SonarCloud, puis fusionnée dans `main`.
-- Les PR sont fusionnées avec un **commit de fusion** (« Merge pull request »). Git sait donc reconnaître une branche déjà fusionnée : c'est ce qui permet le ménage ci-dessous.
-- **Messages de commit : Conventional Commits**, car release-please en déduit le prochain numéro de version ([ci.md § 5](ci.md#sortir-une-version--release-please)). Un type, deux-points, puis le texte en français : `feat: export Excel` (nouveauté), `fix(frontend): menu Saisie` (correction), `docs: …`, `ci: …`, `refactor: …`, `chore: …` ; `feat!: …` si l'existant casse. Vaut aussi pour les petites corrections faites directement sur `main`. La CI refuse une PR dont un commit ne suit pas la règle. Pour corriger les messages d'une branche :
-
-  ```bash
-  git rebase -i origin/main          # remplacer « pick » par « reword » devant chaque commit à renommer
-  git push --force-with-lease
-  ```
+- Les PR sont fusionnées en **squash** (« Squash and merge ») : tous les commits de la branche deviennent **un seul commit** sur `main`, qui porte **le titre de la PR**. `main` garde ainsi une ligne par PR, et chaque PR compte une seule fois dans le journal des versions (avec un commit de fusion, release-please la comptait deux fois).
+- **Titre de la PR : Conventional Commits**, car release-please en déduit le prochain numéro de version ([ci.md § 5](ci.md#sortir-une-version--release-please)). Un type, deux-points, puis le texte en français : `feat: export Excel` (nouveauté), `fix(frontend): menu Saisie` (correction), `docs: …`, `ci: …`, `refactor: …`, `chore: …` ; `feat!: …` si l'existant casse. La CI « Titre de la PR » refuse un titre qui ne suit pas la règle ; il suffit de corriger le titre sur GitHub, la vérification se relance. Les messages des commits de la branche, eux, sont libres (ils disparaissent dans le squash). La règle vaut aussi pour le message des petites corrections faites directement sur `main`.
 
 ## 2. Après la fusion d'une PR : purger les branches locales
 
@@ -28,21 +23,21 @@ git switch main && git pull
 git fetch --prune
 ```
 
-**3. Voir les branches locales déjà fusionnées dans `main`**, sans rien supprimer :
+**3. Voir les branches locales dont la branche GitHub a disparu**, sans rien supprimer. Avec le réglage du § 4, GitHub supprime la branche dès que sa PR est fusionnée : `gone` veut donc dire « fusionnée ».
 
 ```bash
-git branch --merged main | grep -vE '^\*|^ *main$'
+git branch -vv | grep ': gone]'
 ```
 
-Le `grep` retire de la liste `main` elle-même et la branche en cours (marquée `*`).
+Avec le squash, Git ne reconnaît plus une branche fusionnée (`git branch --merged` ne la voit pas : son travail est dans `main` sous un autre commit). C'est pourquoi on se fie à la disparition de la branche sur GitHub.
 
-**4. Les supprimer :**
+**4. Les supprimer**, après avoir relu la liste de l'étape 3 :
 
 ```bash
-git branch --merged main | grep -vE '^\*|^ *main$' | xargs git branch -d
+git branch -vv | grep ': gone]' | awk '{print $1}' | xargs git branch -D
 ```
 
-`-d` est la suppression **prudente** : Git refuse de supprimer une branche dont le travail n'est pas dans `main`, avec le message « not fully merged ». Une branche en cours n'est donc jamais perdue.
+`-D` est obligatoire (`-d` répondrait « not fully merged », toujours, à cause du squash). Il supprime sans vérifier : d'où la relecture de l'étape 3. Une branche jamais envoyée sur GitHub n'a pas de `gone` : elle n'est jamais touchée.
 
 **5. Facultatif : supprimer sur GitHub une branche fusionnée qui y est restée.** Elle disparaît pour tout le monde. GitHub peut la restaurer depuis la page de la PR (bouton « Restore branch »).
 
@@ -54,10 +49,14 @@ git push origin --delete <name-branch>
 
 | Situation | Que faire |
 | --- | --- |
-| `git branch -vv` affiche `[origin/…: gone]` | La branche a été supprimée sur GitHub. Si elle apparaît à l'étape 3, elle est fusionnée : l'étape 4 la supprime. Sinon, son travail n'est pas dans `main` : vérifier avant de la jeter. |
-| L'étape 4 refuse une branche (« not fully merged ») | Son travail n'est pas dans `main`. Regarder ce qu'elle contient avec `git log main..<branch>`, puis décider. |
+| Une branche `gone` dont la PR a été **fermée sans être fusionnée** | Son travail n'est pas dans `main`. Vérifier sur la page de la PR (« Closed », pas « Merged ») avant l'étape 4 ; la garder si besoin (la retirer de la liste). |
+| Savoir si une branche a été fusionnée | `gh pr list --state merged --head <branch>` : la PR apparaît si elle a été fusionnée. |
 | Jeter volontairement une branche non fusionnée | `git branch -D <branch>` (D majuscule) : **son travail est perdu**, à utiliser en connaissance de cause. |
 
-## 4. Éviter le ménage sur GitHub
+## 4. Réglages du dépôt GitHub
 
-Dans les réglages du dépôt GitHub (**Settings**, puis **General**, section « Pull Requests »), cocher **« Automatically delete head branches »**. GitHub supprime alors la branche dès que sa PR est fusionnée. Il ne reste que le ménage local (étapes 1 à 4).
+Dans **Settings**, puis **General**, section « Pull Requests » :
+
+- **Allow squash merging** coché, avec **Default commit message : Pull request title** : le commit sur `main` porte exactement le titre vérifié par la CI ;
+- **Allow merge commits** et **Allow rebase merging** décochés : le squash est la seule façon de fusionner ;
+- **Automatically delete head branches** coché : GitHub supprime la branche dès que sa PR est fusionnée. Il ne reste que le ménage local (étapes 1 à 4), qui s'appuie justement sur cette suppression.

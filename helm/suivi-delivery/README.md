@@ -23,7 +23,7 @@ Tous les conteneurs tournent **sans droits administrateur**, sans numéro d'util
 
 **Le chart suit la version de l'application** : `version` et `appVersion` de `Chart.yaml` sont égales, et égales aux versions de `backend/pyproject.toml` et `frontend/package.json` (vérifié par la CI). Par défaut, le chart déploie les images de sa propre version : `suivi-delivery-backend:<version>`, `suivi-delivery-frontend:<version>`, `suivi-delivery-liquibase:<version>`, `suivi-delivery-keycloak:<version>` et `suivi-delivery-postgres:<version>` (l'image officielle de PostgreSQL, sous le nom du projet ; sa version est figée dans `postgres/Dockerfile`).
 
-Ces images sont publiées par la CI à la sortie de chaque version (étiquette Git `vX.Y.Z`), dans `ghcr.io/artenola/` : voir `docs/ci.md` § 5. C'est là que le chart les cherche par défaut (`images.registry: ghcr.io/artenola`, placé devant le nom de chaque image). Si le dépôt est privé, donner l'accès au registre dans `values-secret.yaml` (`registry`). Pour un autre registre : changer seulement `images.registry`. Vide : noms courts, pour des images chargées à la main sur le nœud (kind).
+Ces images sont publiées par la CI à la sortie de chaque version (étiquette Git `vX.Y.Z`), dans `ghcr.io/florent-coulon-deville/` : voir `docs/ci.md` § 5. C'est là que le chart les cherche par défaut (`images.registry: ghcr.io/florent-coulon-deville`, placé devant le nom de chaque image). Si le dépôt est privé, donner l'accès au registre dans `values-secret.yaml` (`registry`). Pour un autre registre : changer seulement `images.registry`. Vide : noms courts, pour des images chargées à la main sur le nœud (kind).
 
 ## Deux fichiers de réglages
 
@@ -52,10 +52,10 @@ helm upgrade --install suivi-delivery ./helm/suivi-delivery -n <area-names> \
 helm test suivi-delivery -n <area-names>
 ```
 
-**Une version publiée** : seules les images sont publiées (`ghcr.io/artenola/suivi-delivery-*:<version>`), pas le chart. On prend le chart dans le dépôt Git, à l'étiquette de la version :
+**Une version publiée** : seules les images sont publiées (`ghcr.io/florent-coulon-deville/suivi-delivery-*:<version>`), pas le chart. On prend le chart dans le dépôt Git, à l'étiquette de la version :
 
 ```bash
-git clone --branch v0.4.3 --depth 1 https://github.com/Artenola/suivi-delivery.git suivi-delivery-0.4.3
+git clone --branch v0.4.3 --depth 1 https://github.com/florent-coulon-deville/suivi-delivery.git suivi-delivery-0.4.3
 helm upgrade --install suivi-delivery ./suivi-delivery-0.4.3/helm/suivi-delivery \
   -n <area-names> -f values-secret.yaml -f values-<instance>.yaml
 ```
