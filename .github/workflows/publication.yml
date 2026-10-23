@@ -97,7 +97,7 @@ jobs:
     name: Publier l'image ${{ matrix.part }} (${{ matrix.arch }})
     needs: check
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 20
+    timeout-minutes: 40  # jusqu'à 3 essais de fabrication
     permissions:
       contents: read
       packages: write  # publier dans ghcr.io (jeton du dépôt, rien à créer)
@@ -129,8 +129,80 @@ jobs:
         env:
           DHI_USERNAME: ${{ secrets.DHI_USERNAME }}
           DHI_TOKEN: ${{ secrets.DHI_TOKEN }}
-        run: echo "$DHI_TOKEN" | docker login dhi.io --username "$DHI_USERNAME" --password-stdin
-      - name: Fabriquer et publier l'image ${{ matrix.part }} (${{ matrix.arch }})
+        # Jusqu'à 5 essais, pause de 30 s, 60 s, 90 s, 120 s entre deux : une coupure passagère
+        # de dhi.io (vue le 2026-10-23 depuis les machines GitHub) ne fait plus échouer la CI.
+        # Avant chaque essai, on vérifie que dhi.io répond (401 attendu : il demande une
+        # connexion) : le journal distingue ainsi « dhi.io injoignable » de « jeton refusé ».
+        run: |
+          for attempt in 1 2 3 4 5; do
+            answer=$(curl -s -o /dev/null --max-time 20 -w '%{http_code} en %{time_total} s' https://dhi.io/v2/ || true)
+            if [[ $answer == 401* ]]; then
+              echo "dhi.io répond ($answer)."
+            else
+              echo "::warning::dhi.io ne répond pas normalement (réponse : ${answer:-aucune})."
+            fi
+            if echo "$DHI_TOKEN" | docker login dhi.io --username "$DHI_USERNAME" --password-stdin; then
+              exit 0
+            fi
+            if [[ $attempt -lt 5 ]]; then
+              echo "::warning::Connexion à dhi.io ratée (essai $attempt sur 5), nouvel essai dans $((attempt * 30)) s."
+              sleep $((attempt * 30))
+            fi
+          done
+          echo "::error::dhi.io ne répond pas après 5 essais : réessayer plus tard (Re-run failed jobs)."
+          exit 1
+      # Fabrication essayée jusqu'à 3 fois (pauses de 60 puis 120 s) : dhi.io ne répond
+      # parfois pas aux machines GitHub pendant la lecture des images de base
+      # (« DeadlineExceeded », vu le 2026-10-23). GitHub ne sait pas répéter une étape :
+      # elle est écrite trois fois, chaque essai ne se lançant que si le précédent a échoué.
+      # Le cache rend un nouvel essai rapide (ce qui est déjà fabriqué n'est pas refait).
+      - name: Fabriquer et publier l'image ${{ matrix.part }} (${{ matrix.arch }}) (essai 1 sur 3)
+        id: build1
+        continue-on-error: true  # un échec mène à l'essai suivant
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: ${{ matrix.part }}
+          platforms: linux/${{ matrix.arch }}
+          pull: true  # images de base à jour (correctifs de sécurité)
+          push: true
+          tags: ${{ needs.check.outputs.registry }}/suivi-delivery-${{ matrix.part }}:${{ needs.check.outputs.version }}-${{ matrix.arch }}
+          # « source » rattache l'image au dépôt : elle en prend la visibilité et les droits.
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.check.outputs.version }}
+            org.opencontainers.image.revision=${{ needs.check.outputs.revision }}
+            org.opencontainers.image.title=suivi-delivery-${{ matrix.part }}
+          cache-from: type=gha,scope=${{ matrix.part }}  # cache des vérifications (ci-docker.yml, amd64)
+      - name: Pause avant l'essai 2
+        if: steps.build1.outcome == 'failure'
+        run: |
+          echo "::warning::Fabrication ratée (essai 1 sur 3, souvent dhi.io qui ne répond pas), nouvel essai dans 60 s."
+          sleep 60
+      - name: Fabriquer et publier l'image ${{ matrix.part }} (${{ matrix.arch }}) (essai 2 sur 3)
+        if: steps.build1.outcome == 'failure'
+        id: build2
+        continue-on-error: true  # un échec mène à l'essai suivant
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: ${{ matrix.part }}
+          platforms: linux/${{ matrix.arch }}
+          pull: true  # images de base à jour (correctifs de sécurité)
+          push: true
+          tags: ${{ needs.check.outputs.registry }}/suivi-delivery-${{ matrix.part }}:${{ needs.check.outputs.version }}-${{ matrix.arch }}
+          # « source » rattache l'image au dépôt : elle en prend la visibilité et les droits.
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.check.outputs.version }}
+            org.opencontainers.image.revision=${{ needs.check.outputs.revision }}
+            org.opencontainers.image.title=suivi-delivery-${{ matrix.part }}
+          cache-from: type=gha,scope=${{ matrix.part }}  # cache des vérifications (ci-docker.yml, amd64)
+      - name: Pause avant l'essai 3
+        if: steps.build2.outcome == 'failure'
+        run: |
+          echo "::warning::Fabrication ratée (essai 2 sur 3, souvent dhi.io qui ne répond pas), nouvel essai dans 120 s."
+          sleep 120
+      - name: Fabriquer et publier l'image ${{ matrix.part }} (${{ matrix.arch }}) (essai 3 sur 3)
+        if: steps.build2.outcome == 'failure'
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
           context: ${{ matrix.part }}

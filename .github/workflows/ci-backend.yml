@@ -92,7 +92,28 @@ jobs:
         env:
           DHI_USERNAME: ${{ secrets.DHI_USERNAME }}
           DHI_TOKEN: ${{ secrets.DHI_TOKEN }}
-        run: echo "$DHI_TOKEN" | docker login dhi.io --username "$DHI_USERNAME" --password-stdin
+        # Jusqu'à 5 essais, pause de 30 s, 60 s, 90 s, 120 s entre deux : une coupure passagère
+        # de dhi.io (vue le 2026-10-23 depuis les machines GitHub) ne fait plus échouer la CI.
+        # Avant chaque essai, on vérifie que dhi.io répond (401 attendu : il demande une
+        # connexion) : le journal distingue ainsi « dhi.io injoignable » de « jeton refusé ».
+        run: |
+          for attempt in 1 2 3 4 5; do
+            answer=$(curl -s -o /dev/null --max-time 20 -w '%{http_code} en %{time_total} s' https://dhi.io/v2/ || true)
+            if [[ $answer == 401* ]]; then
+              echo "dhi.io répond ($answer)."
+            else
+              echo "::warning::dhi.io ne répond pas normalement (réponse : ${answer:-aucune})."
+            fi
+            if echo "$DHI_TOKEN" | docker login dhi.io --username "$DHI_USERNAME" --password-stdin; then
+              exit 0
+            fi
+            if [[ $attempt -lt 5 ]]; then
+              echo "::warning::Connexion à dhi.io ratée (essai $attempt sur 5), nouvel essai dans $((attempt * 30)) s."
+              sleep $((attempt * 30))
+            fi
+          done
+          echo "::error::dhi.io ne répond pas après 5 essais : réessayer plus tard (Re-run failed jobs)."
+          exit 1
       - name: Appliquer la structure de la base (image Liquibase du projet)
         env:
           LIQUIBASE_COMMAND_URL: jdbc:postgresql://localhost:5432/suivi_delivery_tests?currentSchema=suivi_delivery
