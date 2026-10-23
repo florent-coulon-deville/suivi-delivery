@@ -17,7 +17,7 @@ Sur GitHub, chaque fichier de `.github/workflows/` part tout seul, en parallèle
 | `_images.yml` | brique : fabrication et publication des cinq images (étiquette, processeurs, cache… donnés par le pipeline) |
 | `.github/actions/connexion-dhi/` | action du dépôt : connexion à dhi.io, réessayée en cas de coupure (§ 3) |
 
-```
+```PlainText
 snapshot.yml   (chaque push, toutes branches)
   étape 1 : backend · frontend · chart Helm · version          (en parallèle)
   étape 2 : images <branche>-snapshot, Intel/AMD + ARM, ghcr.io  ← seulement si l'étape 1 est verte
