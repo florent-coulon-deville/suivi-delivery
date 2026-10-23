@@ -77,9 +77,19 @@ jobs:
       tag: ${{ steps.version.outputs.tag }}
       version: ${{ steps.version.outputs.version }}
     steps:
+      # Relance à la main : seule une étiquette vX.Y.Z est acceptée (jamais une branche ou un commit),
+      # vérifiée avant de récupérer le moindre code.
+      - name: Étiquette valide
+        env:
+          TAG: ${{ inputs.tag || needs.release-please.outputs.tag_name }}
+        run: |
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::« $TAG » n'est pas une étiquette de version (vX.Y.Z attendu)."
+            exit 1
+          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          ref: ${{ inputs.tag || needs.release-please.outputs.tag_name }}
+          ref: refs/tags/${{ inputs.tag || needs.release-please.outputs.tag_name }}
           persist-credentials: false
       - name: Version unique, égale à l'étiquette
         id: version

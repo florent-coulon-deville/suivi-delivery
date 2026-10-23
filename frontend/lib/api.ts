@@ -20,15 +20,21 @@ export class ApiError extends Error {
   }
 }
 
+// Chemin d'API autorisé : segments simples (lettres, chiffres, - et _), paramètres éventuels après « ? ».
+// Filet commun à tous les appels : ni « .. », ni « // », ni « \ » ; l'appel reste toujours sous /api/.
+const SAFE_PATH = /^[a-z0-9_-]+(\/[a-z0-9_-]+)*(\?[^#]*)?$/i;
+
 /** Envoie la requête ; si l'API est injoignable, lève ApiError sans révéler son adresse. */
 async function send(path: string, options: RequestInit = {}): Promise<Response> {
+  if (!SAFE_PATH.test(path)) throw new ApiError("chemin d'API invalide");
   const url = `${apiUrl()}/api/${path}`;
   try {
     // no-store : toujours les données du moment, jamais une copie gardée en cache.
     return await fetch(url, { ...options, cache: "no-store" });
   } catch (cause) {
     // L'adresse de l'API ne va que dans les journaux du serveur, jamais dans la page.
-    console.error(`API injoignable (${url}) :`, cause);
+    // Texte fixe, adresse à part : un « % » dans l'adresse n'est jamais lu comme un format.
+    console.error("API injoignable (%s) :", url, cause);
     throw new ApiError("connexion impossible");
   }
 }

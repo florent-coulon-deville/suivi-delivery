@@ -190,7 +190,7 @@ Cette PR attend : on peut fusionner plusieurs PR, elle se met à jour à chaque 
     - **refaire les vérifications** (backend, frontend, chart Helm) sur le commit de l'étiquette : une version publiée a forcément été testée ;
     - **fabriquer et publier les cinq images** (backend, frontend, Liquibase, Keycloak, PostgreSQL) à partir d'images de base à jour, **pour deux types de processeurs** (voir ci-dessous). **Jamais d'étiquette `latest`** : on sait toujours quelle version tourne.
 
-Publication ratée (panne de dhi.io…) : onglet *Actions* → « Release » → *Run workflow*, en donnant l'étiquette (`v0.5.0`) : les vérifications et la publication reprennent pour elle.
+Publication ratée (panne de dhi.io…) : onglet *Actions* → « Release » → *Run workflow*, en donnant l'étiquette (`v0.5.0`) : les vérifications et la publication reprennent pour elle. Seule une étiquette de la forme `vX.Y.Z` est acceptée : tout autre texte (branche, commit) arrête le pipeline avant de récupérer le code, qui est pris par `refs/tags/<étiquette>` (alertes CodeQL « cache poisoning » : sans ce contrôle, n'importe quel code aurait pu remplir le cache de `main`).
 
 **À savoir :**
     - **Réglage du dépôt requis**, une fois : *Settings* → *Actions* → *General* → *Workflow permissions* → cocher « Allow GitHub Actions to create and approve pull requests ». Sans lui, release-please ne peut pas ouvrir sa PR.
