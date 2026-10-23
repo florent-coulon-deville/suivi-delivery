@@ -1,0 +1,16 @@
+# Fichiers à ne jamais mettre dans le paquet du chart (helm package).
+# Les secrets d'une installation : jamais publiés, jamais empaquetés.
+# (Helm ne connaît pas les exceptions « !… » de Git : on liste seulement les vrais fichiers.)
+values-secret.yaml
+values-secret-*.yaml
+# Fichiers des outils
+.DS_Store
+.git/
+.gitignore
+*.swp
+*.bak
+*.tmp
+*.orig
+*~
+.vscode/
+.idea/

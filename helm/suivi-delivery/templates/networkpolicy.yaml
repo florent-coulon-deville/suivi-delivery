@@ -1,0 +1,79 @@
+{{- /*
+Seuls les pods portant l'étiquette « suivi-delivery/api-access » de cette installation
+(l'interface, et le test Helm) peuvent joindre l'API. Les probes de Kubernetes, envoyées par
+le nœud, ne sont pas concernées.
+*/ -}}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "sd.name" . }}-backend
+  labels:
+    {{- include "sd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "sd.selector" (dict "context" . "part" "backend") | nindent 6 }}
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              suivi-delivery/api-access: "true"
+      ports:
+        - port: http
+{{- end }}
+{{- if .Values.networkPolicy.enabled }}
+---
+{{- /* Seuls l'interface (pages de connexion, échange des codes) et l'API (clés de signature, gestion
+       des comptes) joignent Keycloak. Port de gestion (9000) : les probes seulement, venues du nœud. */}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "sd.name" . }}-keycloak
+  labels:
+    {{- include "sd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "sd.selector" (dict "context" . "part" "keycloak") | nindent 6 }}
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              suivi-delivery/acces-keycloak: "true"
+      ports:
+        - port: http
+{{- end }}
+{{- if and .Values.networkPolicy.enabled .Values.database.internal }}
+---
+{{- /* Seuls les pods de l'API (et leurs conteneurs de préparation : Liquibase) et de Keycloak
+       joignent la base intégrée. */}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "sd.name" . }}-postgresql
+  labels:
+    {{- include "sd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "sd.selector" (dict "context" . "part" "postgresql") | nindent 6 }}
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "sd.selector" (dict "context" . "part" "backend") | nindent 14 }}
+        - podSelector:
+            matchLabels:
+              {{- include "sd.selector" (dict "context" . "part" "keycloak") | nindent 14 }}
+      ports:
+        - port: postgresql
+{{- end }}

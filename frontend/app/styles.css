@@ -1,0 +1,1842 @@
+/* Apparence de l'interface.
+ *
+ * Toutes les couleurs sont des variables (« tokens ») définies ci-dessous : pour changer le
+ * thème, on ne modifie que ce bloc. Le mode sombre suit le réglage du poste, sauf choix contraire
+ * de la personne (« Mon compte » → Apparence).
+ */
+:root {
+  --background: #f4f6fa;
+  --surface: #ffffff;
+  --surface-2: #f8f9fc;
+  --hover: #f1f4fb;
+  --text: #182033;
+  --text-2: #5b6478;
+  --text-3: #8a93a6;
+  --border: #e4e8f0;
+  --accent: #3b5bdb;
+  --accent-soft: #e8edff;
+  --bar: #141a2e;
+  --bar-text: #e6e9f2;
+
+  --release: #157f3c;
+  --release-background: #e3f6ea;
+  --release-border: #b6e4c6;
+  --snapshot: #a35a00;
+  --snapshot-background: #fff3dc;
+  --snapshot-border: #f6d49a;
+  --empty: #8a93a6;
+  --empty-background: #f1f3f7;
+  --prod: #c92a2a;
+  --prod-background: #fff0f0;
+
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
+  --shadow-strong: 0 12px 40px rgba(16, 24, 40, 0.18);
+  --radius: 12px;
+
+  /* Teintes pastel des environnements (liseré de leurs colonnes), dans l'ordre de promotion. */
+  --env-0: #a5d8ff;
+  --env-1: #b2f2bb;
+  --env-2: #ffd8a8;
+  --env-3: #d0bfff;
+  --env-4: #99e9f2;
+  --env-5: #fcc2d7;
+  --env-6: #ffec99;
+  --env-7: #c3fae8;
+
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text);
+  background: var(--background);
+  color-scheme: light;
+}
+
+/* Thème sombre : selon le réglage de l'ordinateur (thème « automatique »), sauf si la personne a
+ * choisi « clair » ; ou imposé si elle a choisi « sombre » (« Mon compte » → Apparence : attribut
+ * data-theme de <html>, posé par le serveur, voir lib/theme.ts). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: #0f1320;
+    --surface: #171c2c;
+    --surface-2: #1c2235;
+    --hover: #222a40;
+    --text: #e6e9f2;
+    --text-2: #a9b1c4;
+    --text-3: #737d94;
+    --border: #2a3249;
+    --accent: #7c95ff;
+    --accent-soft: #253055;
+    --bar: #0a0e19;
+
+    --release: #5fd28a;
+    --release-background: #16362a;
+    --release-border: #23543c;
+    --snapshot: #f5b54a;
+    --snapshot-background: #3a2c12;
+    --snapshot-border: #5c4419;
+    --empty-background: #232a3d;
+    --prod: #ff7b7b;
+    --prod-background: #3a1d24;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --env-0: #35516e;
+    --env-1: #335a3b;
+    --env-2: #644a2c;
+    --env-3: #4a3f69;
+    --env-4: #2b5a60;
+    --env-5: #63384d;
+    --env-6: #625a2a;
+    --env-7: #305a4f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --background: #0f1320;
+  --surface: #171c2c;
+  --surface-2: #1c2235;
+  --hover: #222a40;
+  --text: #e6e9f2;
+  --text-2: #a9b1c4;
+  --text-3: #737d94;
+  --border: #2a3249;
+  --accent: #7c95ff;
+  --accent-soft: #253055;
+  --bar: #0a0e19;
+
+  --release: #5fd28a;
+  --release-background: #16362a;
+  --release-border: #23543c;
+  --snapshot: #f5b54a;
+  --snapshot-background: #3a2c12;
+  --snapshot-border: #5c4419;
+  --empty-background: #232a3d;
+  --prod: #ff7b7b;
+  --prod-background: #3a1d24;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --env-0: #35516e;
+  --env-1: #335a3b;
+  --env-2: #644a2c;
+  --env-3: #4a3f69;
+  --env-4: #2b5a60;
+  --env-5: #63384d;
+  --env-6: #625a2a;
+  --env-7: #305a4f;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--background);
+}
+code {
+  font-family: ui-monospace, "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 0.9em;
+}
+button {
+  font: inherit;
+  color: inherit;
+}
+/* Règle de l'interface : changer de page = lien (onglet ou texte bleu), agir sur l'écran = bouton
+   (principal, secondaire, discret). Tout ce qui se clique montre le même contour au clavier. */
+/* Lien dans une phrase (« Réessayer », « continuer ») : bleu, souligné. */
+a:not([class]) {
+  color: var(--accent);
+}
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.subtle {
+  color: var(--text-2);
+}
+.area {
+  flex: 1;
+}
+
+/* ===== Barre du haut ===== */
+.top-bar {
+  background: var(--bar);
+  color: var(--bar-text);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+/* Bandeau du nom de l'instance (recette, production…) : voir lib/settings.ts. */
+.instance-banner {
+  color: #ffffff;
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 24px;
+}
+.top-bar-content {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 24px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.2px;
+}
+.logo {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  /* Teintes assez foncées pour que le texte blanc reste lisible (contraste ≥ 4,5:1). */
+  background-color: #4361ee;
+  background-image: linear-gradient(135deg, #4361ee, #7c3aed);
+  color: white;
+  font-size: 14px;
+}
+.tabs {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+  height: 100%;
+}
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  color: #a9b1c4;
+  border-bottom: 2px solid transparent;
+}
+.tab.actif {
+  color: white;
+  border-bottom-color: #7c95ff;
+}
+.tab.inactif {
+  cursor: not-allowed;
+}
+.tab small {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #2a3249;
+  color: #a9b1c4;
+}
+.running {
+  display: inline-block;
+  animation: running 0.8s linear infinite;
+}
+@keyframes running {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ===== Page ===== */
+.page {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.alert {
+  background: var(--prod-background);
+  border: 1px solid var(--prod);
+  color: var(--prod);
+  padding: 14px 18px;
+  border-radius: var(--radius);
+  line-height: 1.7;
+}
+
+/* ===== Chiffres clés ===== */
+.summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 14px;
+}
+.tile {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px 18px;
+  border-top: 3px solid var(--accent);
+}
+.tile.accent-snapshot {
+  border-top-color: var(--snapshot);
+}
+.tile.accent-prod {
+  border-top-color: var(--prod);
+}
+.tile-label {
+  color: var(--text-2);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.tile-value {
+  font-size: 26px;
+  font-weight: 700;
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Valeur en texte (ex. « batch-paie 2.3.0 ») : plus petite, et peut passer à la ligne plutôt que d'être coupée */
+.tile-value.texte {
+  font-size: 18px;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  padding-top: 5px;
+}
+.tile-detail {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+/* ===== Carte principale ===== */
+.main-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 18px 20px 6px;
+}
+/* Titre et aide à gauche, bouton à droite : le texte se replie avant que le bouton ne passe dessous */
+.card-header > :first-child {
+  flex: 1 1 280px;
+}
+.card-header > button {
+  flex: none;
+}
+/* Tableau directement sous le titre (sans ligne de filtres) : un peu d'air */
+.card-header + .table-container,
+.card-header + .shown-key,
+.card-header + .banner {
+  margin-top: 14px;
+}
+.main-card h2 {
+  margin: 0;
+  font-size: 17px;
+}
+.subtitle {
+  margin: 2px 0 0;
+  color: var(--text-2);
+  font-size: 13px;
+}
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: 12px;
+}
+.badge {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  margin-left: 8px;
+  border: 1px solid;
+}
+.badge.release {
+  background: var(--release-background);
+  border-color: var(--release);
+}
+.badge.snapshot {
+  background: var(--snapshot-background);
+  border-color: var(--snapshot);
+}
+.badge.vide {
+  background: var(--empty-background);
+  border-color: var(--empty);
+  border-style: dashed;
+}
+
+/* ===== Filtres ===== */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.field-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: var(--surface-2);
+  color: var(--text-3);
+}
+.field-search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.field-search input {
+  border: none;
+  outline: none;
+  background: transparent;
+  padding: 8px 0;
+  min-width: 200px;
+  color: var(--text);
+  font: inherit;
+}
+.filters select {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+}
+.segments {
+  display: flex;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px;
+}
+.segment {
+  border: none;
+  background: none;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-2);
+}
+.segment.actif {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  font-weight: 600;
+}
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: var(--text-2);
+  user-select: none;
+}
+.toggle input {
+  display: none;
+}
+.slider {
+  width: 32px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--border);
+  position: relative;
+  transition: background 0.2s;
+}
+.slider::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: var(--shadow);
+  transition: transform 0.2s;
+}
+.toggle input:checked + .slider {
+  background: var(--accent);
+}
+.toggle input:checked + .slider::after {
+  transform: translateX(14px);
+}
+
+/* ===== Matrice ===== */
+.table-container {
+  overflow-x: auto;
+}
+.matrix {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.matrix th,
+.matrix td {
+  padding: 10px 14px;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border);
+}
+.matrix thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 1;
+  font-weight: 600;
+  color: var(--text-2);
+  font-size: 12px;
+}
+.matrix th.col-module {
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.col-module {
+  width: 280px;
+  min-width: 240px;
+}
+.env-header {
+  display: flex;
+  flex-direction: column;
+}
+.env-code {
+  font-size: 14px;
+  color: var(--text);
+  font-weight: 700;
+}
+.env-label {
+  font-weight: 400;
+  color: var(--text-3);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.env-header.prod .env-code {
+  color: var(--prod);
+}
+.env-header.prod .env-code::after {
+  content: "PROD";
+  margin-left: 6px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--prod-background);
+  vertical-align: 2px;
+}
+.matrix th.survolee,
+.matrix td.survolee {
+  background: var(--hover);
+}
+
+.group-row td {
+  background: var(--surface-2);
+  user-select: none;
+}
+/* Case dont tout le contenu est un bouton (application à replier, module à ouvrir) :
+   le bouton occupe toute la case, c'est lui qui porte la marge intérieure. */
+.matrix td.cellule-bouton {
+  padding: 0;
+}
+.cell-button > button {
+  display: block;
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 10px 14px;
+  text-align: left;
+  cursor: pointer;
+}
+/* Contour à l'intérieur de la case : le tableau défile et couperait un contour extérieur. */
+.cell-button > button:focus-visible {
+  outline-offset: -2px;
+}
+.group-row .cell-button > button {
+  padding: 9px 14px;
+}
+.cell-button .module-name {
+  display: block;
+}
+.group-row:hover td {
+  background: var(--hover);
+}
+.chevron {
+  display: inline-block;
+  width: 12px;
+  margin-right: 6px;
+  color: var(--text-3);
+  font-size: 11px;
+  text-align: center;
+  transition: transform 0.15s;
+}
+.chevron.ouvert {
+  transform: rotate(90deg);
+}
+.group-name {
+  font-weight: 700;
+  margin-right: 8px;
+}
+.group-label {
+  color: var(--text-2);
+  margin-right: 10px;
+}
+.bullet {
+  display: inline-block;
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--empty-background);
+  color: var(--text-2);
+  margin-right: 6px;
+}
+.bullet-prod {
+  background: var(--prod-background);
+  color: var(--prod);
+  font-weight: 600;
+}
+
+.module-row td.col-module {
+  border-left: 3px solid transparent;
+}
+.module-row:hover td.col-module {
+  background: var(--hover);
+}
+.module-row.selectionnee td.col-module {
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+}
+.module-code {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.module-name {
+  color: var(--text-2);
+  font-size: 12px;
+}
+.label {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--empty-background);
+  color: var(--text-2);
+}
+.label.capacite {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.label.courante {
+  background: var(--release-background);
+  color: var(--release);
+  margin-left: 8px;
+}
+.checkbox.selectionnee {
+  box-shadow: inset 0 0 0 2px var(--accent);
+  border-radius: 6px;
+}
+.absent {
+  color: var(--text-3);
+  opacity: 0.6;
+}
+/* Pastilles d'une case : une par ligne, précédées du cluster quand il y en a plusieurs */
+.checkbox-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.checkbox-row > .version {
+  margin: 0;
+}
+.checkbox-cluster {
+  min-width: 3.5em;
+  font-family: ui-monospace, "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 10px;
+  color: var(--text-3);
+}
+
+/* Version (puce colorée), utilisée dans le tableau, le panneau et l'activité */
+.version {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  border: 1px solid;
+  border-radius: 8px;
+  padding: 3px 9px;
+  margin: 2px 4px 2px 0;
+  line-height: 1.25;
+  background: none;
+}
+button.version {
+  cursor: pointer;
+  transition:
+    transform 0.1s,
+    box-shadow 0.1s;
+}
+button.version:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow);
+}
+.version-number {
+  font-family: ui-monospace, "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  font-weight: 700;
+  font-size: 12px;
+}
+.version-date {
+  font-size: 10px;
+  opacity: 0.8;
+}
+.version.release {
+  background: var(--release-background);
+  border-color: var(--release-border);
+  color: var(--release);
+}
+.version.snapshot {
+  background: var(--snapshot-background);
+  border-color: var(--snapshot-border);
+  color: var(--snapshot);
+}
+.version.vide {
+  background: var(--empty-background);
+  border-color: var(--empty);
+  border-style: dashed;
+  color: var(--empty);
+}
+.version.grande {
+  padding: 8px 14px;
+}
+.version.grande .version-number {
+  font-size: 18px;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 48px;
+  color: var(--text-2);
+}
+.empty-state-icon {
+  font-size: 32px;
+  color: var(--text-3);
+}
+
+/* ===== Activité récente ===== */
+.activity > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 16px 20px;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.activity > summary::-webkit-details-marker {
+  display: none;
+}
+.activity > summary::before {
+  content: "›";
+  font-weight: 700;
+  color: var(--text-3);
+  transition: transform 0.15s;
+}
+.activity[open] > summary::before {
+  transform: rotate(90deg);
+}
+.activity-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 8px;
+  border-top: 1px solid var(--border);
+}
+.activity-list button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 20px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+.activity-list button:hover {
+  background: var(--hover);
+}
+.activity-date {
+  width: 90px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.activity-module {
+  font-weight: 600;
+  min-width: 110px;
+}
+.activity-version {
+  width: 150px;
+}
+.activity-arrow {
+  color: var(--text-3);
+}
+
+/* ===== Panneau latéral ===== */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 14, 25, 0.35);
+  z-index: 20;
+  animation: apparaitre 0.15s ease-out;
+}
+/* Le fond du voile est un bouton invisible : un clic à côté du panneau le ferme. */
+.overlay-background {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: default;
+}
+.panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: min(520px, 100%);
+  background: var(--surface);
+  box-shadow: var(--shadow-strong);
+  display: flex;
+  flex-direction: column;
+  animation: glisser 0.2s ease-out;
+}
+@keyframes apparaitre {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes glisser {
+  from {
+    transform: translateX(40px);
+    opacity: 0;
+  }
+}
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 20px 24px 12px;
+}
+.panel-header h2 {
+  margin: 4px 0 2px;
+  font-size: 22px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.panel-overline {
+  font-size: 12px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.panel-subtitle {
+  color: var(--text-2);
+}
+/* ✕ des panneaux : un bouton comme les autres, réduit à une icône */
+.close {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  min-width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text-2);
+}
+.close:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.panel-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--border);
+}
+.panel-tabs button {
+  border: none;
+  background: none;
+  padding: 10px 12px;
+  cursor: pointer;
+  color: var(--text-2);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.panel-tabs button.actif {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+.choice-env {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 14px 24px 0;
+}
+.choice-env button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.choice-env button.actif {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.choice-env button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.env-prod {
+  color: var(--prod);
+}
+.point {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.point.release {
+  background: var(--release);
+}
+.point.snapshot {
+  background: var(--snapshot);
+}
+.panel-body {
+  padding: 16px 24px 32px;
+  overflow-y: auto;
+  flex: 1;
+}
+.block {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 12px;
+  background: var(--surface-2);
+}
+.block-version {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.block-title {
+  font-weight: 700;
+}
+.block-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+}
+.block-row > .version {
+  min-width: 140px;
+  align-items: center;
+}
+.block-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 18px;
+  margin: 0;
+}
+.grid dt {
+  color: var(--text-2);
+}
+.grid dd {
+  margin: 0;
+}
+.section-title {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-2);
+  margin: 20px 0 10px;
+}
+.label-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.condition {
+  margin-right: 8px;
+}
+
+/* Frise de l'historique */
+.timeline {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0 0 0 8px;
+}
+.timeline li {
+  position: relative;
+  padding: 0 0 18px 24px;
+  border-left: 2px solid var(--border);
+}
+.timeline li:last-child {
+  border-left-color: transparent;
+}
+.timeline-point {
+  position: absolute;
+  left: -7px;
+  top: 4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+}
+.timeline-point.release {
+  background: var(--release);
+}
+.timeline-point.snapshot {
+  background: var(--snapshot);
+}
+.timeline li.courante .timeline-point {
+  box-shadow: 0 0 0 4px var(--release-background);
+}
+.timeline-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* ===== Onglets cliquables (barre du haut) ===== */
+.tabs button.onglet {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font: inherit;
+}
+.tabs button.onglet:hover,
+.tabs a.onglet:hover {
+  color: white;
+}
+/* Onglets sous forme de liens (une page par espace, et « Mon compte ») */
+a.onglet {
+  text-decoration: none;
+}
+
+/* ===== Boutons ===== */
+/* Trois allures seulement, partout (voir docs/frontend.md) :
+     - onglet : passer d'une partie à une autre (barre du haut, sous-onglets, panneau, menu de la Saisie) ;
+     - bouton : agir. Toujours encadré, même taille ; plein bleu pour l'action principale de
+       l'écran (une seule), rouge pour confirmer une suppression, normal pour tout le reste ;
+     - choix (.segments) : choisir une valeur parmi quelques-unes.
+   Le texte bleu souligné est réservé aux liens placés dans une phrase. */
+.button-primary,
+.button-secondary,
+.button-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  padding: 6px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  line-height: 1.4;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.button-secondary:hover {
+  background: var(--hover);
+}
+.button-primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: white;
+  font-weight: 600;
+}
+.button-primary:hover,
+.button-danger:hover {
+  filter: brightness(1.08);
+}
+.button-danger {
+  border-color: var(--prod);
+  background: var(--prod);
+  color: white;
+  font-weight: 600;
+}
+.button-primary:disabled,
+.button-secondary:disabled,
+.button-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+/* Bouton réduit à une icône (⋯, ⟳) : carré */
+.button-icon {
+  padding: 6px 10px;
+  min-width: 34px;
+}
+/* Sur le fond sombre de la barre du haut */
+.top-bar .button-secondary {
+  border-color: #2f3852;
+  background: #1c2337;
+  color: var(--bar-text);
+}
+.top-bar .button-secondary:hover {
+  background: #252e48;
+}
+/* Groupe de boutons côte à côte (confirmation « Supprimer ? Oui Non », actions d'une ligne) */
+.button-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ===== Menu déroulant (components/Menu.tsx) ===== */
+.menu {
+  position: relative;
+  display: inline-block;
+}
+.menu-list {
+  position: fixed; /* top et right calculés par Menu.tsx, sous le bouton */
+  z-index: 30;
+  min-width: 180px;
+  padding: 4px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-strong);
+  text-align: left;
+}
+.menu-list form {
+  margin: 0;
+}
+.menu-element {
+  display: block;
+  width: 100%;
+  border: none;
+  background: none;
+  color: var(--text);
+  padding: 7px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: none;
+  white-space: nowrap;
+  font-weight: 400;
+}
+.menu-element:hover {
+  background: var(--hover);
+}
+.menu-element.danger {
+  color: var(--prod);
+}
+.menu-element.danger:hover {
+  background: var(--prod-background);
+}
+.menu-separator {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--border);
+}
+.menu-info {
+  padding: 6px 12px 8px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+/* ===== Espace Saisie ===== */
+.edit {
+  display: grid;
+  grid-template-columns: 230px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 800px) {
+  .edit {
+    grid-template-columns: 1fr;
+  }
+}
+.edit-menu {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 8px;
+  position: sticky;
+  top: 76px;
+}
+.menu-group + .menu-group {
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+.menu-group-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-3);
+  padding: 6px 10px;
+}
+.menu-link {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: none;
+  background: none;
+  padding: 7px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-2);
+}
+.menu-link:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.menu-link.actif {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.account-menu {
+  font-size: 11px;
+  min-width: 22px;
+  text-align: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--empty-background);
+  color: var(--text-2);
+}
+.menu-link.actif .account-menu {
+  background: var(--surface);
+  color: var(--accent);
+}
+
+.banner {
+  display: block; /* aussi quand c'est un <output>, élément « en ligne » par défaut */
+  margin: 12px 20px 0;
+  padding: 10px 14px;
+  border-radius: 8px;
+}
+.banner.succes {
+  background: var(--release-background);
+  color: var(--release);
+}
+.banner.erreur {
+  background: var(--prod-background);
+  color: var(--prod);
+}
+
+.edit-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.edit-table th,
+.edit-table td {
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.edit-table th {
+  font-size: 12px;
+  color: var(--text-2);
+  font-weight: 600;
+  background: var(--surface);
+}
+.edit-table tbody tr:hover {
+  background: var(--hover);
+}
+/* Noms techniques (namespaces, releases…) et première colonne (code, date…) : jamais coupés */
+.edit-table code,
+.edit-table td:first-child {
+  white-space: nowrap;
+}
+/* « .edit-table .col-actions » : plus précis que « .edit-table td », qui aligne à gauche */
+.col-actions,
+.edit-table .col-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+.confirmation {
+  color: var(--prod);
+  font-weight: 600;
+}
+.confirmation .button-secondary {
+  font-weight: 400;
+}
+
+/* ===== Formulaires ===== */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field > label {
+  font-weight: 600;
+  font-size: 13px;
+}
+.required {
+  color: var(--prod);
+}
+/* Codes affichés en majuscules (zones réseau) : l'API les garde en minuscules */
+.field input.majuscules {
+  text-transform: uppercase;
+}
+/* Tous les champs de saisie (texte, nombre, mot de passe…), sauf les cases à cocher */
+.field input:not([type="checkbox"]):not([type="radio"]),
+.field select,
+.step select,
+.step input {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  width: 100%;
+}
+.field input:focus,
+.field select:focus,
+.step select:focus,
+.step input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* Listes déroulantes : même allure partout (formulaires, installation guidée, filtres).
+   La flèche du navigateur est remplacée par un chevron discret, décollé du bord. */
+.field select,
+.step select,
+.filters select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%238a93a6' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px;
+  padding-right: 34px;
+  min-height: 38px;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.field select:hover:not(:disabled),
+.step select:hover:not(:disabled),
+.filters select:hover {
+  border-color: var(--text-3);
+}
+.filters select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+/* « — choisir — » (rien de choisi) : grisé, pour ne pas le prendre pour une valeur */
+.field select:has(> option[value=""]:checked),
+.step select:has(> option[value=""]:checked) {
+  color: var(--text-3);
+}
+.field select option,
+.step select option {
+  color: var(--text);
+}
+.field select:disabled,
+.step select:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  background-color: var(--surface-2);
+}
+/* Cases à cocher : aux couleurs de l'outil, un peu plus grandes que celles du navigateur */
+input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.field-help {
+  font-size: 12px;
+  color: var(--text-3);
+}
+.multiple-checkboxes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--surface-2);
+}
+.form-alert {
+  background: var(--prod-background);
+  color: var(--prod);
+  border: 1px solid var(--prod);
+  border-radius: 8px;
+  padding: 10px 14px;
+  line-height: 1.5;
+}
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+/* Formulaire guidé (installation) */
+.step {
+  display: flex;
+  gap: 14px;
+}
+.step-number {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: white;
+  font-weight: 700;
+  font-size: 13px;
+}
+.step.inactive .step-number {
+  background: var(--border);
+  color: var(--text-3);
+}
+.step.inactive label {
+  color: var(--text-3);
+}
+.step-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.step-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+.two-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.sub-label {
+  font-size: 12px;
+  color: var(--text-2);
+  margin-bottom: 4px;
+}
+.field.champ-case {
+  flex-direction: row;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+/* ===== Connexion, utilisateur, comptes ===== */
+/* Page « Mon compte » : une carte étroite, centrée */
+.page-login {
+  max-width: 460px;
+  margin: 48px auto;
+}
+.page-login .form {
+  padding: 12px 20px 20px;
+}
+
+/* Page de connexion */
+.login {
+  min-height: calc(100vh - 160px);
+  display: grid;
+  place-items: center;
+  padding: 24px 0;
+}
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  padding: 36px 32px 28px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-strong);
+}
+.login-header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+.login-logo {
+  display: inline-grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #3b5bdb, #6741d9); /* assez foncé pour le blanc (contraste) */
+  color: white;
+  font-size: 24px;
+  box-shadow: 0 8px 24px rgba(91, 124, 255, 0.35);
+}
+.login-header h1 {
+  margin: 16px 0 4px;
+  font-size: 22px;
+}
+.login-header p {
+  margin: 0;
+  color: var(--text-2);
+}
+.login-card .form {
+  gap: 18px;
+}
+.login-card .field input {
+  padding: 11px 12px;
+}
+.login-card .banner {
+  margin: 0;
+}
+.button-large {
+  width: 100%;
+  padding: 11px 16px;
+  font-size: 15px;
+  margin-top: 4px;
+}
+.login-help {
+  margin: 22px 0 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-3);
+}
+/* Nom de la personne : bouton du menu « Mon compte / Se déconnecter », souligné sur « Mon compte » */
+.top-bar .menu > .active {
+  box-shadow: inset 0 -2px 0 #7c95ff;
+}
+.user-name {
+  font-weight: 600;
+}
+.shown-key {
+  display: grid;
+  gap: 8px;
+  margin: 0 24px 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--snapshot-border);
+  border-radius: var(--radius);
+  background: var(--snapshot-background);
+}
+.shown-key code {
+  font-size: 15px;
+  word-break: break-all;
+  user-select: all;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--snapshot-border);
+}
+.key-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ===== Petits écrans (téléphone, tablette en hauteur) ===== */
+@media (max-width: 760px) {
+  /* Barre du haut sur deux lignes : marque et boutons en haut, onglets en dessous (défilables) */
+  .top-bar-content {
+    height: auto;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    padding: 10px 16px 0;
+  }
+  .brand {
+    flex: 1;
+    white-space: nowrap;
+  }
+  .tabs {
+    order: 3;
+    flex-basis: 100%;
+    height: 42px;
+    overflow-x: auto;
+  }
+  .tab {
+    white-space: nowrap;
+  }
+  .user-name {
+    display: inline-block;
+    vertical-align: bottom;
+    max-width: 90px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .page {
+    padding: 16px;
+  }
+}
+
+/* ===== Mon compte, onglets des comptes ===== */
+.account-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.account-page-form {
+  max-width: 460px;
+  padding: 12px 20px 20px;
+}
+/* Onglets à l'intérieur d'une carte (Utilisateurs / Programmes) */
+.sub-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 10px 20px 0;
+  border-bottom: 1px solid var(--border);
+}
+.sub-tabs button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sub-tabs button.actif {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.sub-tabs button:hover {
+  color: var(--text);
+}
+
+/* ===== Journal des actions (/audit-log) ===== */
+.filters .field-filter,
+.filter-date input {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+}
+.filter-date {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: 13px;
+}
+.subtle-text {
+  color: var(--text-3);
+  font-size: 12px;
+}
+.audit-log-table td {
+  vertical-align: top;
+}
+.audit-log-date {
+  white-space: nowrap;
+}
+.audit-log-create {
+  background: var(--release-background);
+  color: var(--release);
+}
+.audit-log-update {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.audit-log-delete {
+  background: var(--prod-background);
+  color: var(--prod);
+}
+.audit-log-changes {
+  margin: 0 0 4px;
+  padding-left: 16px;
+  font-size: 13px;
+}
+.audit-log-content {
+  max-height: 260px;
+  overflow: auto;
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: anywhere;
+}
+
+/* ===== Couleurs des environnements ===== */
+/* Une teinte pastel par environnement, dans l'ordre de promotion (classe env-tint-N, N de 0 à 7,
+ * voir environmentTint dans lib/format.ts) : un liseré à gauche des cases de sa colonne (pas
+ * de l'en-tête), et son en-tête légèrement teinté. Juste pour reconnaître les environnements d'un coup d'œil. */
+.env-tint-0 { --env: var(--env-0); }
+.env-tint-1 { --env: var(--env-1); }
+.env-tint-2 { --env: var(--env-2); }
+.env-tint-3 { --env: var(--env-3); }
+.env-tint-4 { --env: var(--env-4); }
+.env-tint-5 { --env: var(--env-5); }
+.env-tint-6 { --env: var(--env-6); }
+.env-tint-7 { --env: var(--env-7); }
+.matrix td[class*="env-teinte-"] {
+  box-shadow: inset 3px 0 0 var(--env);
+}
+.matrix thead th[class*="env-teinte-"] {
+  background: color-mix(in srgb, var(--env) 45%, var(--surface));
+}
+.choice-env button[class*="env-teinte-"] {
+  border-left: 4px solid var(--env);
+}
+
+/* ===== Liste filtrable (components/FilterableList.tsx) =====
+ * Une liste déroulante où l'on tape pour filtrer : même allure qu'un champ de saisie, avec un
+ * chevron ; les choix s'affichent dessous, par-dessus le reste. Classe doublée : passe devant le
+ * style général des champs (.champ input), pour garder la place du chevron et de la croix. */
+.filterable-list {
+  position: relative;
+  width: 100%;
+}
+.filterable-list.liste-filtrable input[role="combobox"] {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 52px 8px 10px;
+  min-height: 38px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  width: 100%;
+  cursor: text;
+}
+.filterable-list.liste-filtrable input[role="combobox"]:hover:not(:disabled) {
+  border-color: var(--text-3);
+}
+.filterable-list.liste-filtrable input[role="combobox"]:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.filterable-list.desactivee input {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.filterable-list-arrow {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-3);
+  pointer-events: none;
+  font-size: 12px;
+}
+.filterable-list-clear {
+  position: absolute;
+  right: 28px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 12px;
+}
+.filterable-list-clear:hover {
+  color: var(--text);
+}
+.filterable-list-option {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  max-height: 260px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-strong);
+}
+.filterable-list-option li {
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.filterable-list-option li.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.filterable-list-option li[aria-selected="true"] {
+  font-weight: 600;
+}
+.filterable-list-option .filterable-list-nothing {
+  color: var(--text-3);
+  cursor: default;
+}
+
+/* Filtre au-dessus d'une liste de cases à cocher (choix multiples) */
+.checkbox-filter {
+  margin-bottom: 6px;
+}
+
+/* ===== Import de la configuration ===== */
+.import .banner {
+  margin: 12px 0 0;
+}
+.import-problems {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+.import-detail {
+  margin-top: 12px;
+}
+.import-detail summary {
+  cursor: pointer;
+  padding: 8px 0;
+}

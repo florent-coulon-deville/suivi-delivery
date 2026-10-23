@@ -1,0 +1,30 @@
+# Fichier principal de Liquibase : la liste, dans l'ordre, des fichiers de changements
+# de la structure de la base. Guide : docs/postgresql.md.
+#
+# Règles :
+#   - on AJOUTE un fichier à la fin de la liste pour chaque évolution ;
+#   - on ne MODIFIE JAMAIS un changement déjà appliqué : Liquibase garde son empreinte
+#     (somme de contrôle) et refuse de démarrer s'il a changé ;
+#   - chaque changement dit comment revenir en arrière (« --rollback »).
+#
+# Liquibase note ce qu'il a appliqué dans deux tables à lui, créées automatiquement dans le
+# même schéma que nos tables (suivi_delivery) :
+#   databasechangelog       un enregistrement par changement appliqué ;
+#   databasechangeloglock   un verrou : deux Liquibase ne travaillent jamais en même temps.
+databaseChangeLog:
+  # Version 1 de la structure : les tables, puis leurs contraintes (nommées) et leurs index.
+  - include:
+      file: 001-tables.sql
+      relativeToChangelogFile: true
+  - include:
+      file: 002-primary-keys.sql
+      relativeToChangelogFile: true
+  - include:
+      file: 003-unique-and-check-constraints.sql
+      relativeToChangelogFile: true
+  - include:
+      file: 004-foreign-keys.sql
+      relativeToChangelogFile: true
+  - include:
+      file: 005-index.sql
+      relativeToChangelogFile: true

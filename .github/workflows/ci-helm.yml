@@ -1,0 +1,47 @@
+# CI du chart Helm (déploiement sur OpenShift) : vérifié par chart-verifier, l'outil de Red Hat
+# pour les charts destinés à OpenShift. Rien n'est déployé.
+#
+# On lance directement l'image officielle de Red Hat (construite sur UBI 9, la base RHEL), en
+# version exacte, sans action tierce. Voir docs/ci.md.
+#
+# Profil « developer-console » : les règles des charts proposés dans la console d'OpenShift.
+# Contrôles, tous obligatoires : helm-lint, is-helm-v3, contains-values, contains-values-schema,
+# has-kubeversion, has-readme. Aucun cluster n'est nécessaire.
+name: CI chart Helm
+
+on:
+  pull_request:
+    branches: [main]
+    paths: ["helm/suivi-delivery/**", ".github/workflows/ci-helm.yml"]
+  push:
+    branches: [main]
+    paths: ["helm/suivi-delivery/**", ".github/workflows/ci-helm.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-helm-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  helm:
+    name: Chart Helm (Red Hat chart-verifier)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      CHART_VERIFIER: quay.io/redhat-certification/chart-verifier:1.16.0  # éditeur : Red Hat
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Vérifier le chart (profil developer-console)
+        run: |
+          docker run --rm -v "$PWD/helm/suivi-delivery:/charts/suivi-delivery:ro" "$CHART_VERIFIER" \
+            verify --set profile.vendortype=developer-console /charts/suivi-delivery > report.yaml
+          cat report.yaml
+          # chart-verifier répond « succès » même si des contrôles échouent : on lit le rapport.
+          if grep -q "outcome: FAIL" report.yaml; then
+            echo "::error::Le chart ne passe pas tous les contrôles de Red Hat (voir les « FAIL » ci-dessus)"
+            exit 1
+          fi

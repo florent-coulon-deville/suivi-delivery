@@ -1,0 +1,50 @@
+{{- /*
+Test Helm (« helm test <installation> ») : vérifie, depuis l'intérieur du cluster, que l'interface
+répond (/health, page de connexion), qu'elle sert bien Keycloak sous /auth (configuration du
+domaine) et que l'API est prête (/readyz). Utilise l'image de l'interface, qui contient Node.js.
+*/ -}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "sd.name" . }}-test
+  labels:
+    {{- include "sd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: test
+    suivi-delivery/api-access: "true"
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  serviceAccountName: {{ include "sd.name" . }}
+  automountServiceAccountToken: false
+  {{- include "sd.imagePullSecrets" . | nindent 2 }}
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: test
+      image: {{ include "sd.image" (dict "context" . "part" "frontend") }}
+      imagePullPolicy: {{ .Values.images.pullPolicy }}
+      command: ["node", "-e"]
+      args:
+        - |
+          const urls = [
+            "http://{{ include "sd.name" . }}-frontend:8080/health",
+            "http://{{ include "sd.name" . }}-frontend:8080/login",
+            "http://{{ include "sd.name" . }}-frontend:8080/auth/realms/suivi-delivery/.well-known/openid-configuration",
+            "http://{{ include "sd.name" . }}-backend:8000/readyz",
+          ];
+          (async () => {
+            for (const url of urls) {
+              const response = await fetch(url, { redirect: "manual" });
+              console.log(`${response.status} ${url}`);
+              if (response.status !== 200) process.exit(1);
+            }
+            console.log("Installation en bon état.");
+          })().catch((error) => { console.error(error); process.exit(1); });
+      resources:
+        requests: { cpu: 10m, memory: 64Mi, ephemeral-storage: 10Mi }
+        limits: { cpu: 200m, memory: 128Mi, ephemeral-storage: 50Mi }
+      {{- include "sd.containerSecurity" . | nindent 6 }}

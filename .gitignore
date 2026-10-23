@@ -1,0 +1,31 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.env
+*.db
+.DS_Store
+
+# Réglages des conteneurs sur le poste (un seul fichier ; modèles : <module>/docker.example.env)
+/deployment/docker.env
+/deployment/docker.old.env
+
+# Frontend : dépendances installées par npm et site construit (régénérables)
+node_modules/
+frontend/dist/
+# Next.js : dossier de construction et fichier de types régénéré à chaque lancement
+frontend/.next/
+frontend/next-env.d.ts
+frontend/tsconfig.tsbuildinfo
+
+# Chart Helm : les secrets d'une installation ne sont jamais publiés (modèle : values-secret.example.yaml)
+helm/suivi-delivery/values-secret.yaml
+helm/suivi-delivery/values-secret-*.yaml
+helm/suivi-delivery/values-crc.yaml
+
+# Backend : dépendances téléchargées d'avance pour l'image Docker (scripts/prepare_dist.py)
+backend/dist/
+
+# Podman (client du Mac ou de Windows) recopie les secrets de fabrication dans des fichiers
+# temporaires du dossier courant, et ne les efface pas toujours si la fabrication échoue
+podman-build-secret-*

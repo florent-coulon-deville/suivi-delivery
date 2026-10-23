@@ -1,0 +1,12 @@
+# Ce qui ne doit PAS être copié dans l'image Docker du backend.
+.venv
+tests
+scripts
+.env
+.env.*
+!.env.example
+**/__pycache__
+.pytest_cache
+.ruff_cache
+docker.env
+docker.example.env

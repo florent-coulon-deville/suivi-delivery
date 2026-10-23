@@ -1,0 +1,43 @@
+# CI de la version : toute l'application a un seul numéro de version, partout le même
+# (backend, frontend, chart Helm). Voir cicd/check_versions.py et docs/deploiement.md.
+name: CI version
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - backend/pyproject.toml
+      - frontend/package.json
+      - frontend/package-lock.json
+      - helm/suivi-delivery/Chart.yaml
+      - cicd/check_versions.py
+      - .github/workflows/ci-version.yml
+  push:
+    branches: [main]
+    paths:
+      - backend/pyproject.toml
+      - frontend/package.json
+      - frontend/package-lock.json
+      - helm/suivi-delivery/Chart.yaml
+      - cicd/check_versions.py
+      - .github/workflows/ci-version.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-version-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  version:
+    name: Version unique (backend, frontend, chart)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      # Le Python de la machine GitHub suffit (aucune bibliothèque à installer).
+      - name: Comparer les numéros de version
+        run: python3 cicd/check_versions.py

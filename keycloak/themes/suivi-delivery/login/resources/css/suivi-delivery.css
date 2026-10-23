@@ -1,0 +1,334 @@
+/* Allure des pages de connexion : celle de l'interface (frontend/app/styles.css), recopiée.
+ * Mêmes couleurs (« tokens »), même barre du haut, même carte de connexion. À garder d'accord
+ * avec frontend/app/styles.css quand ses couleurs changent.
+ *
+ * Thème : celui choisi dans l'outil (« Mon compte » → Apparence), recopié par l'interface dans un
+ * cookie (frontend/proxy.ts, lu par template.ftl) ; sinon celui du poste.
+ */
+:root {
+  --background: #f4f6fa;
+  --surface: #ffffff;
+  --surface-2: #f8f9fc;
+  --text: #182033;
+  --text-2: #5b6478;
+  --text-3: #8a93a6;
+  --border: #e4e8f0;
+  --accent: #3b5bdb;
+  --accent-soft: #e8edff;
+  --bar: #141a2e;
+  --bar-text: #e6e9f2;
+  --success: #157f3c;
+  --success-background: #e3f6ea;
+  --attention: #a35a00;
+  --attention-background: #fff3dc;
+  --prod: #c92a2a;
+  --prod-background: #fff0f0;
+  --shadow-strong: 0 12px 40px rgba(16, 24, 40, 0.18);
+
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text);
+  background: var(--background);
+  color-scheme: light;
+}
+/* Sombre : selon le poste (thème « automatique »), sauf si la personne a choisi « clair » ; ou
+ * imposé si elle a choisi « sombre » (attribut data-theme, posé par template.ftl). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: #0f1320;
+    --surface: #171c2c;
+    --surface-2: #1c2235;
+    --text: #e6e9f2;
+    --text-2: #a9b1c4;
+    --text-3: #737d94;
+    --border: #2a3249;
+    --accent: #7c95ff;
+    --accent-soft: #253055;
+    --bar: #0a0e19;
+    --success: #5fd28a;
+    --success-background: #16362a;
+    --attention: #f5b54a;
+    --attention-background: #3a2c12;
+    --prod: #ff7b7b;
+    --prod-background: #3a1d24;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --background: #0f1320;
+  --surface: #171c2c;
+  --surface-2: #1c2235;
+  --text: #e6e9f2;
+  --text-2: #a9b1c4;
+  --text-3: #737d94;
+  --border: #2a3249;
+  --accent: #7c95ff;
+  --accent-soft: #253055;
+  --bar: #0a0e19;
+  --success: #5fd28a;
+  --success-background: #16362a;
+  --attention: #f5b54a;
+  --attention-background: #3a2c12;
+  --prod: #ff7b7b;
+  --prod-background: #3a1d24;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--background);
+}
+a {
+  color: var(--accent);
+}
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+/* ===== Barre du haut ===== */
+.top-bar {
+  background: var(--bar);
+  color: var(--bar-text);
+}
+.instance-banner {
+  background: #c2410c;
+  color: #ffffff;
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 24px;
+}
+.instance-banner.prod {
+  background: #c92a2a;
+}
+.top-bar-content {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 24px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.2px;
+}
+.logo {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background-color: #4361ee;
+  background-image: linear-gradient(135deg, #4361ee, #7c3aed);
+  color: white;
+  font-size: 14px;
+}
+
+/* ===== Carte de connexion ===== */
+.page {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+.login {
+  min-height: calc(100vh - 160px);
+  display: grid;
+  place-items: center;
+  padding: 24px 0;
+}
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  padding: 36px 32px 28px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-strong);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.login-header {
+  text-align: center;
+  margin-bottom: 10px;
+}
+.login-logo {
+  display: inline-grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #3b5bdb, #6741d9);
+  color: white;
+  font-size: 24px;
+  box-shadow: 0 8px 24px rgba(91, 124, 255, 0.35);
+}
+.login-header h1 {
+  margin: 16px 0 4px;
+  font-size: 22px;
+}
+.login-header p {
+  margin: 0;
+  color: var(--text-2);
+}
+.login-identity {
+  margin: 0;
+  text-align: center;
+  color: var(--text-2);
+}
+.login-help {
+  margin: 4px 0 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* ===== Formulaires ===== */
+.form,
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin: 0;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field label {
+  font-weight: 600;
+  font-size: 13px;
+}
+.field input:not([type="checkbox"]):not([type="radio"]),
+.login-card input[type="text"],
+.login-card input[type="password"] {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 11px 12px;
+  background: var(--surface);
+  color: var(--text);
+  width: 100%;
+}
+.field input:focus,
+.login-card input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.field input[aria-invalid="true"] {
+  border-color: var(--prod);
+}
+.field-help {
+  font-size: 12px;
+  color: var(--text-3);
+}
+.field-error {
+  font-size: 12px;
+  color: var(--prod);
+}
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-2);
+}
+.input-group {
+  display: flex;
+  gap: 6px;
+}
+/* Bouton « afficher le mot de passe » des pages de « base » : inutile ici */
+.button-show {
+  display: none;
+}
+
+/* ===== Boutons ===== */
+.button-primary,
+input[type="submit"].button-primary {
+  border: none;
+  background: var(--accent);
+  color: white;
+  padding: 11px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.button-primary:hover {
+  filter: brightness(1.08);
+}
+.button-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.button-secondary {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 11px 16px;
+  border-radius: 8px;
+  color: var(--accent);
+  cursor: pointer;
+}
+.button-large {
+  width: 100%;
+  font-size: 15px;
+  margin-top: 4px;
+}
+/* Boutons en sens inverse : le principal, premier dans la page (touche Entrée), à droite */
+.form-buttons {
+  display: flex;
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+  gap: 8px;
+}
+.link {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ===== Messages ===== */
+.banner {
+  display: block;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.banner.success {
+  background: var(--success-background);
+  color: var(--success);
+}
+.banner.warning {
+  background: var(--attention-background);
+  color: var(--attention);
+}
+.form-alert {
+  background: var(--prod-background);
+  color: var(--prod);
+  border: 1px solid var(--prod);
+  border-radius: 8px;
+  padding: 10px 14px;
+  line-height: 1.5;
+}
+
+/* Pages d'information de « base » (page expirée, connexion d'un appareil…) */
+#kc-info-message p,
+.instruction {
+  margin: 0;
+  color: var(--text-2);
+}

@@ -1,0 +1,23 @@
+{
+  "name": "suivi-delivery-frontend",
+  "private": true,
+  "version": "0.4.3",
+  "description": "Interface web du suivi de la delivery (Next.js + React + TypeScript)",
+  "scripts": {
+    "dev": "next dev --port ${PORT:-5173}",
+    "build": "next build",
+    "start": "next start --port ${PORT:-8080}",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "16.3.8",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "typescript": "5.9.3"
+  }
+}

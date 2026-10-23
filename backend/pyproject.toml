@@ -1,0 +1,57 @@
+# Backend du suivi de la delivery : l'API HTTP (FastAPI).
+#
+# Commandes, à lancer depuis le dossier backend/ :
+#   uv sync                              installe Python 3.14 (voir .python-version) et les dépendances dans .venv/
+#   uv run pytest                        lance les tests
+#   uv run python -m app --reload        démarre l'API (Swagger : http://localhost:8000/api/docs ; réglages : app/settings.py)
+
+[project]
+name = "suivi-delivery-backend"
+version = "0.4.3"
+description = "API du suivi des mises en production"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi==0.143.0",   # le framework web : routes, validation, Swagger
+    "openpyxl==3.1.5",    # lit et écrit les fichiers Excel (export et import de la configuration)
+    "psycopg-pool==3.3.3",    # garde des connexions PostgreSQL ouvertes, prêtes à servir
+    "psycopg[binary]==3.3.6", # le connecteur PostgreSQL (binary : livré avec la bibliothèque libpq)
+    "pyjwt[crypto]==2.15.1",  # vérifie les jetons d'accès de Keycloak (JWT signés RSA : crypto)
+    "uvicorn==0.54.0",    # le serveur qui fait tourner l'application
+]
+
+[dependency-groups]
+# Outils de développement uniquement (non nécessaires pour faire tourner l'API).
+dev = [
+    "pytest==9.1.1",      # lance les tests
+    "httpx2==2.13.1",      # utilisé par le client de test de FastAPI
+    "ruff==0.16.10",      # vérifie le style et les erreurs courantes, et formate le code
+    "ty==0.0.85",         # vérifie la cohérence des types (texte, nombre, liste…)
+]
+
+# --- ruff : style et erreurs courantes ------------------------------------------
+# uv run ruff check .          signale les problèmes
+# uv run ruff check . --fix    corrige ceux qui peuvent l'être automatiquement
+# uv run ruff format .         met en forme le code (indentation, guillemets, retours à la ligne)
+[tool.ruff]
+line-length = 120
+target-version = "py314"
+
+[tool.ruff.lint]
+# Familles de règles activées :
+#   E, W  style (PEP 8)              F  erreurs (variable inutilisée, import manquant…)
+#   I     ordre des imports          B  pièges courants (bugbear)
+#   UP    écriture Python moderne    SIM  simplifications possibles
+select = ["E", "W", "F", "I", "B", "UP", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "tests"]
+
+# --- ty : cohérence des types -------------------------------------------------
+# uv run ty check
+[tool.ty.environment]
+python-version = "3.14"
+extra-paths = ["."]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]        # permet aux tests de faire « from app.main import ... »

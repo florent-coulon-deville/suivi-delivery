@@ -1,0 +1,28 @@
+{
+  // Extensions VS Code du projet. À l'ouverture, VS Code propose d'installer les
+  // « recommandées » et signale que les « déconseillées » ne sont pas souhaitées.
+  // Un fichier de projet ne peut pas activer ou désactiver une extension tout seul :
+  // voir README.md (« Dans VS Code ») pour les désactiver sur cet espace de travail.
+  //
+  // Outils Python du projet : uniquement ceux d'Astral (ruff et ty).
+
+  "recommendations": [
+    "charliermarsh.ruff", // erreurs courantes, style, mise en forme (ruff)
+    "astral-sh.ty", // types, complétion, navigation dans le code (ty)
+    "ms-python.python", // choix de l'interpréteur (backend/.venv), onglet des tests
+    "ms-python.debugpy", // exécution pas à pas
+    "docker.docker", // Dockerfiles : aide à l'écriture, alertes de failles des images
+    "ms-kubernetes-tools.vscode-kubernetes-tools", // chart Helm : modèles colorés, complétion, helm lint
+    "sonarsource.sonarlint-vscode" // SonarQube for IDE : problèmes SonarCloud signalés pendant l'écriture
+  ],
+
+  // Font double emploi avec ruff et ty : à ne pas utiliser sur ce projet.
+  "unwantedRecommendations": [
+    "ms-python.vscode-pylance", // remplacé par ty
+    "ms-python.mypy-type-checker", // remplacé par ty
+    "ms-python.pylint", // remplacé par ruff
+    "ms-python.flake8", // remplacé par ruff
+    "ms-python.black-formatter", // remplacé par ruff format
+    "ms-python.isort" // remplacé par ruff (tri des imports)
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  // --- Chart Helm : les modèles (templates/) contiennent des « {{ … }} », ce n'est pas du YAML pur ---
+  // Ils sont lus comme des modèles Helm (langage fourni par l'extension Kubernetes de Microsoft),
+  // pas comme du YAML : sinon, fausses erreurs. Chart.yaml et values.yaml, eux, restent du YAML.
+  // « **/ » au début est obligatoire : un motif contenant « / » est comparé au chemin complet.
+  "files.associations": {
+    // Les fichiers de Python lui-même que ty garde dans son cache (builtins.pyi…), ouverts par
+    // « Aller à la définition » : lus comme du texte simple, pour que SonarQube et Pylint ne les
+    // analysent pas (ce n'est pas notre code, leurs alertes n'y ont pas de sens).
+    "**/.cache/ty/**": "plaintext",
+    "**/helm/*/templates/**/*.yaml": "helm",
+    "**/helm/*/templates/**/*.tpl": "helm"
+  },
+  // --- Interpréteur : l'environnement créé par « uv sync » dans backend/ ---
+  // Windows : remplace la ligne par "${workspaceFolder}\\backend\\.venv\\Scripts\\python.exe"
+  "python.defaultInterpreterPath": "${workspaceFolder}/backend/.venv/bin/python",
+
+  // --- Extensions en double avec les outils Astral, rendues inactives sur ce projet ---
+  // (un projet ne peut pas désactiver une extension, mais ces réglages les éteignent ici)
+  // Pylance : ty s'occupe de la complétion, de la navigation et des types
+  "python.languageServer": "None",
+  // Pylint : ruff s'occupe des erreurs courantes et du style
+  "pylint.enabled": false,
+
+  // --- Tests : pytest lancé depuis backend/ (onglet Testing) ---
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "python.testing.cwd": "${workspaceFolder}/backend",
+  "python.testing.pytestArgs": ["tests"],
+
+  // --- Ruff : mise en forme et corrections automatiques à l'enregistrement ---
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit"
+    }
+  },
+  "editor.rulers": [120],
+
+  // --- Pylint (s'il est encore actif : ruff fait déjà son travail) : jamais hors de notre code ---
+  // Fichiers des bibliothèques, de Python lui-même (typeshed, ouvert par « Aller à la
+  // définition » depuis le cache de ty) et de l'environnement virtuel : pas les nôtres.
+  "pylint.ignorePatterns": ["**/.cache/**", "**/site-packages/**", "**/.venv/**", "**/typeshed/**"],
+
+  // --- Masquer les dossiers techniques générés par les outils ---
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/.ruff_cache": true
+  },
+
+  // --- SonarQube for IDE : mêmes règles que SonarCloud, affichées pendant l'écriture ---
+  // Lien vers le projet SonarCloud (« connected mode »). La connexion elle-même (jeton
+  // SonarCloud) est enregistrée sur chaque poste par l'extension, jamais dans Git.
+  "sonarlint.connectedMode.project": {
+    "connectionId": "artenola",
+    "projectKey": "artenola-suivi-delivery"
+  }
+}

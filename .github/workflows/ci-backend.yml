@@ -1,0 +1,121 @@
+# CI du backend (API Python) : erreurs courantes, mise en forme, types et tests.
+# Mêmes contrôles que sur le poste (voir CLAUDE.md, « Commandes »). Rien n'est déployé.
+# Les tests tournent deux fois : en mémoire (job « backend »), puis sur une vraie base
+# PostgreSQL dont la structure est créée par Liquibase (module liquibase/, job « postgresql »,
+# docs/postgresql.md). Se lance aussi quand la structure (liquibase/) change.
+#
+# Actions figées par leur empreinte de commit, version en commentaire (« # v7.0.1 »). Voir docs/ci.md.
+name: CI backend
+
+on:
+  pull_request:
+    branches: [main]
+    paths: ["backend/**", "liquibase/**", "postgres/**", ".github/workflows/ci-backend.yml"]
+  push:
+    branches: [main]
+    paths: ["backend/**", "liquibase/**", "postgres/**", ".github/workflows/ci-backend.yml"]
+
+# Droits minimaux : lire le code, rien d'autre.
+permissions:
+  contents: read
+
+# Une nouvelle poussée sur la même branche annule la vérification précédente, devenue inutile.
+concurrency:
+  group: ci-backend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (qualité et tests)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false  # le jeton GitHub n'est pas gardé après la récupération du code
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+        with:
+          version: "0.13.4"  # la même que dans backend/Dockerfile (image dhi.io/uv)
+          working-directory: backend  # Python 3.14, lu dans backend/.python-version
+          enable-cache: true
+          cache-dependency-glob: uv.lock  # chemin lu depuis working-directory (backend)
+      - name: Installer les dépendances (versions exactes de uv.lock)
+        run: uv sync --frozen --no-build
+      - name: Erreurs courantes (ruff)
+        run: uv run --frozen --no-build ruff check .
+      - name: Mise en forme (ruff format)
+        run: uv run --frozen --no-build ruff format --check .
+      - name: Types (ty)
+        run: uv run --frozen --no-build ty check
+      - name: Tests (pytest)
+        run: uv run --frozen --no-build pytest
+
+  postgresql:
+    name: Backend (structure Liquibase et tests sur PostgreSQL)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # Une base PostgreSQL de test, à côté du job (image durcie, la même que sur le poste ; le
+    # schéma de nos tables, que l'image du projet crée au premier démarrage, est créé à la main ici).
+    # Mot de passe propre à chaque exécution (numéro du job), jamais écrit en clair : la base
+    # n'existe que le temps du job, sur la machine de la CI.
+    services:
+      postgres:
+        image: dhi.io/postgres:18.6-alpine3.24
+        # Images durcies (dhi.io) : connexion avec un compte Docker (secrets du dépôt).
+        credentials:
+          username: ${{ secrets.DHI_USERNAME }}
+          password: ${{ secrets.DHI_TOKEN }}
+        env:
+          POSTGRES_DB: suivi_delivery_tests
+          POSTGRES_USER: suivi_delivery
+          POSTGRES_PASSWORD: ${{ format('ci-{0}-{1}', github.run_id, github.run_attempt) }}
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U suivi_delivery -d suivi_delivery_tests"
+          --health-interval 2s --health-timeout 5s --health-retries 30
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Préparer la base (schéma de nos tables, comme postgres/initialization/01-schemas.sh)
+        env:
+          PGPASSWORD: ${{ format('ci-{0}-{1}', github.run_id, github.run_attempt) }}
+        run: psql -h localhost -U suivi_delivery -d suivi_delivery_tests -v ON_ERROR_STOP=1 -c "create schema suivi_delivery"
+      # Image Liquibase durcie (Docker Hardened Images, dhi.io) : connexion avec un compte Docker.
+      - name: Connexion à dhi.io
+        env:
+          DHI_USERNAME: ${{ secrets.DHI_USERNAME }}
+          DHI_TOKEN: ${{ secrets.DHI_TOKEN }}
+        run: echo "$DHI_TOKEN" | docker login dhi.io --username "$DHI_USERNAME" --password-stdin
+      - name: Appliquer la structure de la base (image Liquibase du projet)
+        env:
+          LIQUIBASE_COMMAND_URL: jdbc:postgresql://localhost:5432/suivi_delivery_tests?currentSchema=suivi_delivery
+          LIQUIBASE_COMMAND_USERNAME: suivi_delivery
+          LIQUIBASE_COMMAND_PASSWORD: ${{ format('ci-{0}-{1}', github.run_id, github.run_attempt) }}
+        run: |
+          docker build -t suivi-delivery-liquibase ../liquibase
+          # -e VARIABLE sans valeur : Docker reprend celle de l'environnement du job.
+          docker run --rm --network host -e LIQUIBASE_COMMAND_URL -e LIQUIBASE_COMMAND_USERNAME \
+            -e LIQUIBASE_COMMAND_PASSWORD suivi-delivery-liquibase update
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+        with:
+          version: "0.13.4"
+          working-directory: backend
+          enable-cache: true
+          cache-dependency-glob: uv.lock  # chemin lu depuis working-directory (backend)
+      - name: Installer les dépendances (versions exactes de uv.lock)
+        run: uv sync --frozen --no-build
+      - name: Tests (pytest) sur PostgreSQL
+        env:
+          TESTS_DB_HOST: localhost
+          TESTS_DB_PORT: "5432"
+          TESTS_DB_NAME: suivi_delivery_tests
+          TESTS_DB_USER: suivi_delivery
+          TESTS_DB_PASSWORD: ${{ format('ci-{0}-{1}', github.run_id, github.run_attempt) }}
+        run: uv run --frozen --no-build pytest

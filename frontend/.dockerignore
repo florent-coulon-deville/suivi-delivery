@@ -1,0 +1,13 @@
+# Ce qui est envoyé à la fabrication de l'image : SEULEMENT les sources du site (liste blanche).
+# Le site est construit dans l'image (étape « build » du Dockerfile) ; tout le reste est exclu :
+# node_modules et .next du poste, réglages (.env, docker.env…), notes.
+*
+!package.json
+!package-lock.json
+!tsconfig.json
+!next.config.ts
+!next-env.d.ts
+!proxy.ts
+!app/
+!components/
+!lib/

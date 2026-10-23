@@ -1,0 +1,16 @@
+# Modèle des réglages de l'instance « crc » : OpenShift Local (CRC), sur le poste, pour les essais.
+# À copier en « values-crc.yaml » (ignoré par Git), puis à adapter.
+# Rien de secret ici (les secrets sont dans helm/suivi-delivery/values-secret.yaml, jamais dans Git).
+# Seuls les réglages qui diffèrent des valeurs par défaut du chart (helm/suivi-delivery/values.yaml).
+#
+#   helm upgrade --install suivi-delivery ./helm/suivi-delivery \
+#     --kube-context crc-admin -n suivi-delivery --create-namespace \
+#     -f helm/suivi-delivery/values-secret.yaml -f helm/suivi-delivery/values-crc.yaml --wait --timeout 5m
+#
+# ou : ./deployment/k8s-deploy.zsh --contexte crc-admin --valeurs helm/suivi-delivery/values-crc.yaml
+
+application:
+  instanceName: crc            # bandeau affiché en haut de l'interface
+  instanceColor: "#1971c2"  # bleu : un essai, ni recette ni prod
+  # Adresse de la Route choisie par OpenShift (<route>-<espace>.apps-crc.testing) : Keycloak y est servi sous /auth.
+  frontendUrl: https://suivi-delivery-suivi-delivery.apps-crc.testing

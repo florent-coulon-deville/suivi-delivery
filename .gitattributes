@@ -1,0 +1,22 @@
+# Fins de ligne : toujours LF (Unix), sur tous les postes, Windows compris.
+# Sans ce fichier, Git pour Windows convertit souvent les fichiers en CRLF à la récupération
+# (réglage core.autocrlf) : les scripts shell, Dockerfiles et fichiers .env cassent alors dans
+# les conteneurs Linux, et chaque fichier paraît modifié en entier.
+# Ce fichier l'emporte sur le réglage de chaque poste. PowerShell 7 lit très bien le LF.
+* text=auto eol=lf
+
+# Fichiers binaires : jamais touchés (aucun pour l'instant ; prêts pour plus tard)
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf  binary
+*.pdf  binary
+*.zip  binary
+*.gz   binary
+*.tgz  binary
+*.jar  binary

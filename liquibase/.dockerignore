@@ -1,0 +1,3 @@
+# Ce qui ne doit PAS être envoyé à la fabrication de l'image : le modèle de réglages et la doc.
+docker.example.env
+README.md

@@ -1,0 +1,153 @@
+# Publication des images Docker dans le registre de GitHub (ghcr.io), à chaque nouvelle version.
+# Le chart Helm n'est pas publié : on l'installe depuis le dépôt Git (voir docs/deploiement.md).
+#
+# Se lance quand on pousse une étiquette Git de version, par exemple v0.3.1 (voir docs/ci.md,
+# « Sortir une version ») :
+#   1. vérifie que la version est unique (backend, frontend, chart) et égale à l'étiquette ;
+#   2. refuse de republier une version déjà publiée (une image publiée ne change jamais) ;
+#   3. fabrique chaque image deux fois, chacune sur une machine GitHub du bon processeur
+#      (aucune émulation) : Intel/AMD (« amd64 », serveurs, OpenShift) et ARM (« arm64 », Mac
+#      à puce Apple…). Publiées sous <version>-amd64 et <version>-arm64 ;
+#   4. les réunit sous un seul nom, étiqueté avec la version (jamais « latest ») :
+#        ghcr.io/<propriétaire>/suivi-delivery-backend:<version>
+#        ghcr.io/<propriétaire>/suivi-delivery-frontend:<version>
+#        ghcr.io/<propriétaire>/suivi-delivery-liquibase:<version>   (structure de la base)
+#        ghcr.io/<propriétaire>/suivi-delivery-keycloak:<version>    (comptes et connexion)
+#        ghcr.io/<propriétaire>/suivi-delivery-postgres:<version>    (base de données intégrée)
+#      « docker pull » y prend tout seul la version qui convient au processeur de la machine.
+#
+# Actions figées par leur empreinte de commit (version en commentaire). Voir docs/ci.md.
+name: Publication des images
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+
+permissions:
+  contents: read
+
+# Deux publications de la même étiquette ne tournent jamais en même temps.
+concurrency:
+  group: publication-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Vérifier la version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      packages: read  # pour savoir si la version est déjà publiée
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      registry: ${{ steps.version.outputs.registry }}
+    steps:
+      - name: Checkout Version 7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Version unique, égale à l'étiquette
+        id: version
+        run: |
+          python3 cicd/check_versions.py
+          VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('backend/pyproject.toml', 'rb'))['project']['version'])")
+          if [[ "v$VERSION" != "$GITHUB_REF_NAME" ]]; then
+            echo "::error::L'étiquette $GITHUB_REF_NAME ne correspond pas à la version de l'application ($VERSION)."
+            exit 1
+          fi
+          # Le registre n'accepte que des minuscules dans les noms d'images.
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "registry=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+      - name: Version pas encore publiée
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          REGISTRY: ${{ steps.version.outputs.registry }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          for part in backend frontend liquibase keycloak postgres; do
+            if docker manifest inspect "$REGISTRY/suivi-delivery-$part:$VERSION" > /dev/null 2>&1; then
+              echo "::error::$REGISTRY/suivi-delivery-$part:$VERSION est déjà publiée : changer de version (une image publiée ne change jamais)."
+              exit 1
+            fi
+          done
+          echo "Version $VERSION : pas encore publiée"
+
+  publish:
+    name: Publier l'image ${{ matrix.part }} (${{ matrix.arch }})
+    needs: check
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write  # publier dans ghcr.io (jeton du dépôt, rien à créer)
+    strategy:
+      matrix:
+        part: [backend, frontend, liquibase, keycloak, postgres]
+        arch: [amd64, arm64]
+        include:
+          # Machines fournies par GitHub, une par type de processeur.
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      # Chaque Dockerfile récupère lui-même ce dont il a besoin (dépendances, site construit,
+      # connecteur PostgreSQL) : rien à préparer avant la fabrication.
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+      # Connexion faite par Docker lui-même : le jeton n'est confié à aucune action tierce.
+      - name: Connexion à ghcr.io
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      # Images de base durcies (Docker Hardened Images, dhi.io) : connexion avec un compte Docker.
+      - name: Connexion à dhi.io
+        env:
+          DHI_USERNAME: ${{ secrets.DHI_USERNAME }}
+          DHI_TOKEN: ${{ secrets.DHI_TOKEN }}
+        run: echo "$DHI_TOKEN" | docker login dhi.io --username "$DHI_USERNAME" --password-stdin
+      - name: Fabriquer et publier l'image ${{ matrix.part }} (${{ matrix.arch }})
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: ${{ matrix.part }}
+          platforms: linux/${{ matrix.arch }}
+          pull: true  # images de base à jour (correctifs de sécurité)
+          push: true
+          tags: ${{ needs.check.outputs.registry }}/suivi-delivery-${{ matrix.part }}:${{ needs.check.outputs.version }}-${{ matrix.arch }}
+          # « source » rattache l'image au dépôt : elle en prend la visibilité et les droits.
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.check.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.title=suivi-delivery-${{ matrix.part }}
+          cache-from: type=gha,scope=${{ matrix.part }}  # cache des vérifications (ci-docker.yml, amd64)
+
+  merge:
+    name: Réunir les deux versions de l'image ${{ matrix.part }}
+    needs: [check, publish]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        part: [backend, frontend, liquibase, keycloak, postgres]
+    steps:
+      - name: Connexion à ghcr.io
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      # Commande de Docker lui-même : crée <version>, qui renvoie vers les deux versions déjà
+      # publiées (rien n'est refabriqué ni recopié).
+      - name: Publier ${{ matrix.part }}:<version> (amd64 + arm64)
+        env:
+          IMAGE: ${{ needs.check.outputs.registry }}/suivi-delivery-${{ matrix.part }}
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          docker buildx imagetools create --tag "$IMAGE:$VERSION" "$IMAGE:$VERSION-amd64" "$IMAGE:$VERSION-arm64"
+          docker buildx imagetools inspect "$IMAGE:$VERSION"

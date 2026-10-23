@@ -1,0 +1,148 @@
+{{- /*
+Keycloak : les comptes, les mots de passe, la page de connexion et la fabrication des jetons
+(docs/keycloak.md). Image du projet : Keycloak de l'éditeur, avec le thème de l'outil et la
+configuration du domaine « suivi-delivery », importée au premier démarrage.
+
+Ses pages de connexion sont servies par l'interface, sous <adresse de l'interface>/auth : il n'a
+donc ni Route ni Ingress, et sa console d'administration n'est jamais exposée (port-forward
+seulement). L'API et l'interface le joignent par son Service interne.
+
+Ses données sont dans la même base que les nôtres, dans son schéma (database.keycloakSchema), avec
+son propre utilisateur (database.keycloakUser).
+
+Avant Keycloak, « wait-for-database » attend que la base réponde (comme pour l'API).
+Probes : port de gestion 9000 (/auth/health/started, /ready, /live), jamais exposé.
+*/ -}}
+{{- $part := dict "context" . "part" "keycloak" }}
+{{- $secret := include "sd.applicationSecret" . }}
+{{- $host := include "sd.databaseHost" . }}
+{{- $name := printf "%s-keycloak" (include "sd.name" .) }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "sd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak
+spec:
+  selector:
+    {{- include "sd.selector" $part | nindent 4 }}
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "sd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak
+spec:
+  replicas: {{ .Values.keycloak.replicas }}
+  selector:
+    matchLabels:
+      {{- include "sd.selector" $part | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "sd.labels" . | nindent 8 }}
+        {{- include "sd.selector" $part | nindent 8 }}
+      annotations:
+        # Un mot de passe changé dans values-secret.yaml redémarre Keycloak.
+        suivi-delivery/secrets-checksum: {{ printf "%s%s" ((.Values.database).keycloakPassword | default "") ((.Values.keycloak).adminPassword | default "") | sha256sum | trunc 16 }}
+    spec:
+      serviceAccountName: {{ include "sd.name" . }}
+      automountServiceAccountToken: false
+      {{- include "sd.imagePullSecrets" . | nindent 6 }}
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: wait-for-database
+          image: {{ include "sd.image" (dict "context" . "part" "postgresql") }}
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
+          command: ["sh", "-c"]
+          args:
+            - |
+              # -U : l'image n'a pas d'utilisateur par défaut à proposer (pg_isready n'essaierait pas).
+              until pg_isready -q -h "$DB_HOST" -p "$PORT" -U "$DB_USER" -d "$DB_NAME"; do
+                echo "Attente de la base PostgreSQL $DB_HOST:$PORT…"
+                sleep 2
+              done
+              echo "La base répond."
+          env:
+            - { name: DB_HOST, value: {{ $host | quote }} }
+            - { name: PORT, value: {{ .Values.database.port | quote }} }
+            - { name: DB_NAME, value: {{ .Values.database.name | quote }} }
+            - { name: DB_USER, value: {{ .Values.database.keycloakUser | quote }} }
+          resources:
+            requests: { cpu: 10m, memory: 16Mi, ephemeral-storage: 10Mi }
+            limits: { cpu: 100m, memory: 64Mi, ephemeral-storage: 50Mi }
+          {{- include "sd.containerSecurity" . | nindent 10 }}
+            {{- include "sd.postgresUser" . | nindent 12 }}
+      containers:
+        - name: keycloak
+          image: {{ include "sd.image" $part }}
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: management
+              containerPort: 9000
+          env:
+            # Sa base : la nôtre, son schéma, son utilisateur.
+            - name: KC_DB_URL
+              value: {{ printf "jdbc:postgresql://%s:%v/%s" $host .Values.database.port .Values.database.name | quote }}
+            - { name: KC_DB_USERNAME, value: {{ .Values.database.keycloakUser | quote }} }
+            - { name: KC_DB_SCHEMA, value: {{ .Values.database.keycloakSchema | quote }} }
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: {{ $secret }}, key: KC_DB_PASSWORD }
+            # Son adresse vue du navigateur : celle de l'interface, suivie de /auth.
+            - { name: KC_HOSTNAME, value: {{ printf "%s/auth" (include "sd.frontendUrl" .) | quote }} }
+            # Sa console d'administration : son adresse (réglée au démarrage, keycloak/start.sh) et
+            # son administrateur provisoire. Jamais exposée par le chart (port-forward seulement).
+            - { name: KC_HOSTNAME_ADMIN, value: {{ trimSuffix "/" .Values.keycloak.consoleUrl | quote }} }
+            - { name: KC_BOOTSTRAP_ADMIN_USERNAME, value: admin-keycloak }
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: {{ $secret }}, key: KC_BOOTSTRAP_ADMIN_PASSWORD }
+            # Repris dans la configuration importée au premier démarrage (keycloak/import).
+            - { name: APP_FRONTEND_URL, value: {{ include "sd.frontendUrl" . | quote }} }
+            - name: APP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: {{ $secret }}, key: APP_ADMIN_PASSWORD }
+            - name: APP_KEYCLOAK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: { name: {{ $secret }}, key: APP_KEYCLOAK_CLIENT_SECRET }
+            # Bandeau de l'instance sur les pages de connexion, comme dans l'interface.
+            - { name: INSTANCE_NAME, value: {{ .Values.application.instanceName | quote }} }
+            - { name: INSTANCE_COLOR, value: {{ .Values.application.instanceColor | quote }} }
+            # Java écrit ses fichiers temporaires dans /tmp : un disque éphémère.
+            - { name: JAVA_OPTS_APPEND, value: "-Djava.io.tmpdir=/tmp" }
+          startupProbe:
+            httpGet: { path: /auth/health/started, port: management }
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: { path: /auth/health/ready, port: management }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /auth/health/live, port: management }
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.keycloak.resources | nindent 12 }}
+          {{- include "sd.containerSecurity" . | nindent 10 }}
+          volumeMounts:
+            # Les seuls dossiers où Keycloak écrit ; le reste du conteneur est en lecture seule.
+            - { name: tmp, mountPath: /tmp }
+            - { name: data-tmp, mountPath: /opt/keycloak/data/tmp }
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: data-tmp
+          emptyDir: {}

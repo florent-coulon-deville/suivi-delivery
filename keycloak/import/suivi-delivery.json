@@ -1,0 +1,247 @@
+{
+  "realm": "suivi-delivery",
+  "displayName": "Suivi de la delivery",
+  "enabled": true,
+  "loginTheme": "suivi-delivery",
+  "internationalizationEnabled": true,
+  "supportedLocales": [
+    "fr"
+  ],
+  "defaultLocale": "fr",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": false,
+  "verifyEmail": false,
+  "loginWithEmailAllowed": false,
+  "duplicateEmailsAllowed": true,
+  "editUsernameAllowed": false,
+  "sslRequired": "external",
+  "passwordPolicy": "length(12) and notUsername(undefined) and maxLength(128)",
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "failureFactor": 5,
+  "waitIncrementSeconds": 900,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 86400,
+  "ssoSessionMaxLifespan": 604800,
+  "offlineSessionIdleTimeout": 2592000,
+  "offlineSessionMaxLifespanEnabled": true,
+  "offlineSessionMaxLifespan": 31536000,
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0,
+  "oauth2DeviceCodeLifespan": 600,
+  "oauth2DevicePollingInterval": 5,
+  "eventsEnabled": true,
+  "eventsExpiration": 7776000,
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": false,
+  "roles": {
+    "realm": [
+      {
+        "name": "VIEWER",
+        "description": "Lire toutes les données."
+      },
+      {
+        "name": "EDITOR",
+        "description": "Lire, et saisir les livraisons (versions, paramètres, installations).",
+        "composite": true,
+        "composites": {
+          "realm": [
+            "VIEWER"
+          ]
+        }
+      },
+      {
+        "name": "ADMIN",
+        "description": "Tout : la structure, les comptes et le journal.",
+        "composite": true,
+        "composites": {
+          "realm": [
+            "EDITOR"
+          ]
+        }
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "suivi-delivery-frontend",
+      "name": "Interface web",
+      "description": "L'interface web de l'outil (serveur Next.js) : connexion des personnes.",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "consentRequired": false,
+      "frontchannelLogout": false,
+      "fullScopeAllowed": true,
+      "rootUrl": "${APP_FRONTEND_URL}",
+      "baseUrl": "${APP_FRONTEND_URL}/",
+      "redirectUris": [
+        "${APP_FRONTEND_URL}/login/callback"
+      ],
+      "webOrigins": [],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "${APP_FRONTEND_URL}/login/end",
+        "use.refresh.tokens": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "audience-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "suivi-delivery-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true",
+            "lightweight.claim": "false"
+          }
+        }
+      ],
+      "defaultClientScopes": [
+        "basic",
+        "profile",
+        "roles",
+        "web-origins",
+        "acr"
+      ],
+      "optionalClientScopes": []
+    },
+    {
+      "clientId": "suivi-delivery-tools",
+      "name": "Outils (Bruno, Swagger, scripts)",
+      "description": "Appels à l'API par une personne : Bruno et Swagger (page de connexion), scripts (connexion d'un appareil, jeton hors ligne).",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "consentRequired": false,
+      "frontchannelLogout": false,
+      "fullScopeAllowed": true,
+      "redirectUris": [
+        "${APP_API_URL:http://localhost:8000}/api/docs/oauth2-redirect",
+        "https://oauth.usebruno.com/callback"
+      ],
+      "webOrigins": [
+        "+"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "oauth2.device.authorization.grant.enabled": "true",
+        "use.refresh.tokens": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "audience-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "suivi-delivery-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true",
+            "lightweight.claim": "false"
+          }
+        }
+      ],
+      "defaultClientScopes": [
+        "basic",
+        "profile",
+        "roles",
+        "web-origins",
+        "acr"
+      ],
+      "optionalClientScopes": [
+        "offline_access"
+      ]
+    },
+    {
+      "clientId": "suivi-delivery-api",
+      "name": "API (gestion des comptes)",
+      "description": "L'API de l'outil : gère les comptes et les programmes depuis l'écran Comptes.",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${APP_KEYCLOAK_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": true,
+      "consentRequired": false,
+      "fullScopeAllowed": true,
+      "redirectUris": [],
+      "webOrigins": [],
+      "attributes": {},
+      "defaultClientScopes": [
+        "basic",
+        "profile",
+        "roles",
+        "web-origins",
+        "acr"
+      ],
+      "optionalClientScopes": []
+    }
+  ],
+  "users": [
+    {
+      "username": "admin",
+      "enabled": true,
+      "firstName": "Administrateur",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${APP_ADMIN_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "ADMIN",
+        "default-roles-suivi-delivery"
+      ]
+    },
+    {
+      "username": "service-account-suivi-delivery-api",
+      "enabled": true,
+      "serviceAccountClientId": "suivi-delivery-api",
+      "realmRoles": [
+        "default-roles-suivi-delivery"
+      ],
+      "clientRoles": {
+        "realm-management": [
+          "view-realm",
+          "view-users",
+          "query-users",
+          "manage-users",
+          "view-clients",
+          "query-clients",
+          "manage-clients"
+        ]
+      }
+    }
+  ],
+  "components": {
+    "org.keycloak.userprofile.UserProfileProvider": [
+      {
+        "providerId": "declarative-user-profile",
+        "subComponents": {},
+        "config": {
+          "kc.user.profile.config": [
+            "{\"attributes\": [{\"name\": \"username\", \"displayName\": \"${username}\", \"validations\": {\"length\": {\"min\": 1, \"max\": 30}, \"username-prohibited-characters\": {}, \"up-username-not-idn-homograph\": {}}, \"permissions\": {\"view\": [\"admin\", \"user\"], \"edit\": [\"admin\"]}, \"multivalued\": false}, {\"name\": \"email\", \"displayName\": \"${email}\", \"validations\": {\"email\": {}, \"length\": {\"max\": 255}}, \"permissions\": {\"view\": [\"admin\", \"user\"], \"edit\": [\"admin\"]}, \"multivalued\": false}, {\"name\": \"firstName\", \"displayName\": \"Nom\", \"validations\": {\"length\": {\"max\": 100}, \"person-name-prohibited-characters\": {}}, \"permissions\": {\"view\": [\"admin\", \"user\"], \"edit\": [\"admin\"]}, \"multivalued\": false}], \"groups\": []}"
+          ]
+        }
+      }
+    ]
+  }
+}

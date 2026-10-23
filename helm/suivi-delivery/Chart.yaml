@@ -1,0 +1,18 @@
+# Chart Helm du « Suivi de la delivery » : installe l'API (backend), l'interface (frontend)
+# et tout ce qu'il leur faut, sur OpenShift (cible) ou sur un Kubernetes classique (kind…).
+#
+# Version unique : le chart suit la version de l'application. « version » et « appVersion »
+# sont toujours égales, et égales à celles de backend/pyproject.toml et frontend/package.json
+# (vérifié par la CI). Par défaut, le chart déploie les images de sa propre version.
+apiVersion: v2
+name: suivi-delivery
+description: Suivi des mises en production (MEP) — API et interface web.
+type: application
+version: 0.4.3
+appVersion: "0.4.3"
+# Versions de Kubernetes supportées. Cible : OpenShift 4.15 et plus récent (Kubernetes 1.28), kind
+# récent.
+kubeVersion: ">=1.28.0-0"
+keywords: [delivery, mep, deploiement]
+annotations:
+  charts.openshift.io/name: Suivi de la delivery

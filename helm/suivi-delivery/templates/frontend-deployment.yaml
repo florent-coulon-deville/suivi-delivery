@@ -1,0 +1,70 @@
+{{- /*
+L'interface (serveur Next.js). Elle seule appelle l'API (API_URL), par son Service interne.
+Elle sert aussi les pages de connexion de Keycloak, sous /auth (proxy.ts) : elles ont ainsi la même
+adresse que l'outil. Les étiquettes « suivi-delivery/api-access » et « suivi-delivery/acces-keycloak »
+l'autorisent à joindre l'API et Keycloak (NetworkPolicy).
+*/ -}}
+
+{{- $part := dict "context" . "part" "frontend" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sd.name" . }}-frontend
+  labels:
+    {{- include "sd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  replicas: {{ .Values.frontend.replicas }}
+  selector:
+    matchLabels:
+      {{- include "sd.selector" $part | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "sd.labels" . | nindent 8 }}
+        {{- include "sd.selector" $part | nindent 8 }}
+        suivi-delivery/api-access: "true"
+        suivi-delivery/acces-keycloak: "true"
+    spec:
+      serviceAccountName: {{ include "sd.name" . }}
+      automountServiceAccountToken: false
+      {{- include "sd.imagePullSecrets" . | nindent 6 }}
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: frontend
+          image: {{ include "sd.image" $part }}
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - { name: PORT, value: "8080" }
+            - { name: API_URL, value: "http://{{ include "sd.name" . }}-backend:8000" }
+            - { name: INSTANCE_NAME, value: {{ .Values.application.instanceName | quote }} }
+            - { name: INSTANCE_COLOR, value: {{ .Values.application.instanceColor | quote }} }
+            # Connexion par Keycloak : adresse publique (retour de connexion, pages servies sous /auth)
+            # et adresse interne de Keycloak (échange des codes, relais des pages).
+            - { name: APP_FRONTEND_URL, value: {{ include "sd.frontendUrl" . | quote }} }
+            - { name: KEYCLOAK_URL, value: {{ include "sd.keycloakUrl" . | quote }} }
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.frontend.resources | nindent 12 }}
+          {{- include "sd.containerSecurity" . | nindent 10 }}
+          volumeMounts:
+            # Le seul dossier où Next.js écrit (son cache) ; le reste du conteneur est en lecture seule.
+            - { name: cache, mountPath: /app/.next/cache }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: cache
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
