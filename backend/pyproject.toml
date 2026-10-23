@@ -7,7 +7,7 @@
 
 [project]
 name = "suivi-delivery-backend"
-version = "0.4.3"
+version = "0.5.0"
 description = "API du suivi des mises en production"
 requires-python = ">=3.14"
 dependencies = [
