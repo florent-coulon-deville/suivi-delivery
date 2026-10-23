@@ -1,0 +1,35 @@
+# Dependabot (outil de GitHub) : CORRECTIONS DE SÉCURITÉ seulement (« Dependabot security
+# updates », activé dans Settings → Advanced Security). Quand une bibliothèque utilisée a une
+# faille connue et une version corrigée, il ouvre une PR qui passe à cette version. Voir
+# docs/ci.md § 3.
+#
+# Ce fichier ne sert qu'à régler ces PR :
+#   - open-pull-requests-limit: 0  aucune mise à jour ordinaire (choix de l'utilisateur : il
+#     décide lui-même des versions) ; les corrections de sécurité, elles, passent toujours ;
+#   - commit-message  titre « fix(deps): … » : il suit Conventional Commits (contrôle « Titre
+#     de la PR »), et release-please en fait une correction dans le journal des versions.
+# Les images de base (Dockerfile) ne sont pas suivies ici : leurs failles sont dans le rapport
+# Docker Scout, et on les corrige en changeant de version à la main.
+version: 2
+updates:
+  - package-ecosystem: uv  # backend : pyproject.toml + uv.lock
+    directory: /backend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: fix(deps)
+  - package-ecosystem: npm  # frontend : package.json + package-lock.json
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: fix(deps)
+  - package-ecosystem: github-actions  # actions des workflows (figées par leur empreinte)
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: fix(ci)

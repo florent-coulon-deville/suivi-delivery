@@ -16,6 +16,7 @@ Sur GitHub, chaque fichier de `.github/workflows/` part tout seul, en parallèle
 | `_version.yml` | brique : version unique |
 | `_images.yml` | brique : fabrication et publication des cinq images (étiquette, processeurs, cache… donnés par le pipeline) |
 | `.github/actions/connexion-dhi/` | action du dépôt : connexion à dhi.io, réessayée en cas de coupure (§ 3) |
+| `.github/dependabot.yml` | réglages des PR de **Dependabot** : corrections de sécurité seulement, titre `fix(deps): …` (voir [git.md § 4](git.md#4-réglages-du-dépôt-github)) |
 | `.github/workflows/pr-title.yml` | sur chaque PR vers `main` : le titre suit Conventional Commits (seul contrôle lancé par une PR, en lecture seule) |
 
 ```PlainText
