@@ -1,0 +1,44 @@
+# Connexion à dhi.io (Docker Hardened Images, d'où viennent nos images de base), écrite une seule
+# fois et utilisée par _tests-backend.yml et _images.yml (« uses: ./.github/actions/connexion-dhi »).
+# Action du dépôt lui-même (aucune action tierce) ; connexion faite par Docker, le jeton passé
+# par l'entrée standard.
+#
+# Jusqu'à 5 essais, pause de 30 s, 60 s, 90 s, 120 s entre deux : une coupure passagère de dhi.io
+# (vue le 2026-10-23 depuis les machines GitHub) ne fait pas échouer la CI. Avant chaque essai,
+# on vérifie que dhi.io répond (401 attendu : il demande une connexion) : le journal distingue
+# ainsi « dhi.io injoignable » de « jeton refusé ». Voir docs/ci.md.
+name: Connexion à dhi.io
+description: docker login dhi.io, réessayé en cas de coupure
+inputs:
+  username:
+    description: Compte Docker (secret DHI_USERNAME)
+    required: true
+  token:
+    description: Jeton d'accès personnel Docker, en lecture seule (secret DHI_TOKEN)
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Connexion à dhi.io
+      shell: bash
+      env:
+        DHI_USERNAME: ${{ inputs.username }}
+        DHI_TOKEN: ${{ inputs.token }}
+      run: |
+        for attempt in 1 2 3 4 5; do
+          answer=$(curl -s -o /dev/null --max-time 20 -w '%{http_code} en %{time_total} s' https://dhi.io/v2/ || true)
+          if [[ $answer == 401* ]]; then
+            echo "dhi.io répond ($answer)."
+          else
+            echo "::warning::dhi.io ne répond pas normalement (réponse : ${answer:-aucune})."
+          fi
+          if echo "$DHI_TOKEN" | docker login dhi.io --username "$DHI_USERNAME" --password-stdin; then
+            exit 0
+          fi
+          if [[ $attempt -lt 5 ]]; then
+            echo "::warning::Connexion à dhi.io ratée (essai $attempt sur 5), nouvel essai dans $((attempt * 30)) s."
+            sleep $((attempt * 30))
+          fi
+        done
+        echo "::error::dhi.io ne répond pas après 5 essais : réessayer plus tard (Re-run failed jobs)."
+        exit 1

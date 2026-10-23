@@ -1,25 +1,30 @@
-# Snapshots : à chaque push, sur n'importe quelle branche, les cinq images sont fabriquées et
-# publiées dans ghcr.io (jamais sur Docker Hub), sous UNE étiquette par branche, écrasée à chaque
-# fois : on a toujours le dernier état de la branche, pour l'essayer sur un cluster.
+# Pipeline SNAPSHOT : à chaque push, sur n'importe quelle branche (main comprise).
+# Comme un pipeline GitLab, il enchaîne des étapes ; chacune appelle une brique réutilisable
+# (fichiers « _*.yml ») :
 #
-#   main               →  ghcr.io/<propriétaire>/suivi-delivery-backend:main-snapshot
-#   feat/export-excel  →  ghcr.io/<propriétaire>/suivi-delivery-backend:feat-export-excel-snapshot
+#   1. vérifications, en parallèle : backend (mémoire + PostgreSQL), frontend, chart Helm,
+#      version unique — toutes, à chaque push (le cache les rend rapides) ;
+#   2. images : seulement si toutes les vérifications sont vertes, les cinq images sont
+#      fabriquées (Intel/AMD) et publiées dans ghcr.io sous UNE étiquette par branche, écrasée
+#      à chaque push : on a toujours le dernier état de la branche, pour l'essayer sur un cluster.
+#
+#        main               →  ghcr.io/<propriétaire>/suivi-delivery-backend:main-snapshot
+#        feat/export-excel  →  ghcr.io/<propriétaire>/suivi-delivery-backend:feat-export-excel-snapshot
 #
 # Une étiquette de snapshot ne ressemble jamais à une version (0.5.0) : les versions sont
-# publiées par release.yml / publication.yml, et ne sont jamais écrasées.
-# Intel/AMD (amd64) seulement : c'est ce qu'utilisent OpenShift et les serveurs (sur un Mac, kind
-# fabrique ses images en local). Les images écrasées restent stockées sans étiquette : nettoyage
-# à prévoir. Voir docs/ci.md § 5.
-#
-# Actions figées par leur empreinte de commit (version en commentaire). Voir docs/ci.md.
-name: Snapshot des images
+# publiées par release.yml, et ne sont jamais écrasées. Sur une PR, seul le titre est vérifié
+# ici (les vérifications du push, sur le même commit, s'affichent déjà dans la PR).
+# Les images écrasées restent stockées sans étiquette : nettoyage à prévoir. Voir docs/ci.md.
+name: Snapshot
 
 on:
   push:
     branches: ["**"]
+  # Titre des PR (Conventional Commits), vérifié aussi quand on le modifie (« edited »).
+  pull_request:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened]
   # Bouton « Run workflow » (onglet Actions) : snapshot d'une branche choisie, à la demande.
-  # GitHub n'affiche le bouton qu'une fois ce fichier sur main ; avant, en ligne de commande :
-  #   gh workflow run snapshot.yml --ref <branche> [-f no_cache=true]
   workflow_dispatch:
     inputs:
       no_cache:
@@ -30,18 +35,64 @@ on:
 permissions:
   contents: read
 
-# Deux pushes rapprochés sur la même branche : seul le dernier compte, l'étiquette serait écrasée.
+# Deux pushes rapprochés sur la même branche : seul le dernier compte (l'étiquette serait
+# écrasée). Le titre d'une PR a son propre groupe : il n'annule pas le pipeline du push.
 concurrency:
-  group: snapshot-${{ github.ref }}
+  group: snapshot-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # --- PR seulement : le titre ----------------------------------------------------------------
+  # Les PR sont fusionnées en squash : le commit sur main porte le titre de la PR, dont
+  # release-please déduit la prochaine version. Vérifié dans le shell, sans action tierce ; le
+  # titre passe par une variable d'environnement, jamais écrit dans le script.
+  pr-title:
+    name: Titre de la PR (Conventional Commits)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Vérifier le titre
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(feat|fix|perf|revert|docs|refactor|test|build|ci|chore|style)(\([a-z0-9-]+\))?!?: .+'
+          if [[ "$TITLE" =~ $pattern ]]; then
+            echo "Titre correct : $TITLE"
+          else
+            echo "::error::Titre « $TITLE » refusé : il doit commencer par un type suivi de « : »."
+            echo "Exemples : « feat: export Excel », « fix(frontend): menu Saisie », « feat!: … » si l'existant casse."
+            echo "Types : feat (nouveauté), fix (correction), perf, revert, docs, refactor, test, build, ci, chore, style."
+            echo "Corriger le titre de la PR sur GitHub : la vérification se relance toute seule."
+            exit 1
+          fi
+
+  # --- Étape 1 : vérifications (en parallèle) -------------------------------------------------
+  backend:
+    name: Backend
+    if: github.event_name != 'pull_request'
+    uses: ./.github/workflows/_tests-backend.yml
+    secrets: inherit  # DHI_USERNAME, DHI_TOKEN (images durcies de la base de test et de Liquibase)
+  frontend:
+    name: Frontend
+    if: github.event_name != 'pull_request'
+    uses: ./.github/workflows/_tests-frontend.yml
+  helm:
+    name: Chart Helm
+    if: github.event_name != 'pull_request'
+    uses: ./.github/workflows/_tests-helm.yml
+  version:
+    name: Version
+    if: github.event_name != 'pull_request'
+    uses: ./.github/workflows/_version.yml
+
+  # --- Étape 2 : images, si tout est vert -------------------------------------------------------
   tag:
-    name: Calculer l'étiquette
+    name: Étiquette de la branche
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     outputs:
-      image: ${{ steps.tag.outputs.image }}
       tag: ${{ steps.tag.outputs.tag }}
     steps:
       # Nom de la branche passé par une variable d'environnement, jamais écrit dans le script
@@ -53,133 +104,16 @@ jobs:
           BRANCH: ${{ github.ref_name }}
         run: |
           slug=$(printf '%s' "$BRANCH" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]+/-/g; s/^[-.]+//; s/-+$//' | cut -c1-110)
-          echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
           echo "tag=$slug-snapshot" >> "$GITHUB_OUTPUT"
           echo "Branche $BRANCH → étiquette $slug-snapshot"
-
-  publish:
-    name: Snapshot ${{ matrix.part }}
-    needs: tag
-    runs-on: ubuntu-24.04
-    timeout-minutes: 40  # jusqu'à 3 essais de fabrication
+  images:
+    name: Images
+    needs: [backend, frontend, helm, version, tag]
+    uses: ./.github/workflows/_images.yml
     permissions:
       contents: read
-      packages: write  # publier dans ghcr.io (jeton du dépôt, rien à créer)
-    strategy:
-      fail-fast: false  # une image cassée n'empêche pas de publier les autres
-      matrix:
-        part: [backend, frontend, liquibase, keycloak, postgres]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
-      # Connexions faites par Docker lui-même : les jetons ne sont confiés à aucune action tierce.
-      - name: Connexion à ghcr.io
-        env:
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: echo "$TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
-      - name: Connexion à dhi.io
-        env:
-          DHI_USERNAME: ${{ secrets.DHI_USERNAME }}
-          DHI_TOKEN: ${{ secrets.DHI_TOKEN }}
-        # Jusqu'à 5 essais, pause de 30 s, 60 s, 90 s, 120 s entre deux : une coupure passagère
-        # de dhi.io (vue le 2026-10-23 depuis les machines GitHub) ne fait plus échouer la CI.
-        # Avant chaque essai, on vérifie que dhi.io répond (401 attendu : il demande une
-        # connexion) : le journal distingue ainsi « dhi.io injoignable » de « jeton refusé ».
-        run: |
-          for attempt in 1 2 3 4 5; do
-            answer=$(curl -s -o /dev/null --max-time 20 -w '%{http_code} en %{time_total} s' https://dhi.io/v2/ || true)
-            if [[ $answer == 401* ]]; then
-              echo "dhi.io répond ($answer)."
-            else
-              echo "::warning::dhi.io ne répond pas normalement (réponse : ${answer:-aucune})."
-            fi
-            if echo "$DHI_TOKEN" | docker login dhi.io --username "$DHI_USERNAME" --password-stdin; then
-              exit 0
-            fi
-            if [[ $attempt -lt 5 ]]; then
-              echo "::warning::Connexion à dhi.io ratée (essai $attempt sur 5), nouvel essai dans $((attempt * 30)) s."
-              sleep $((attempt * 30))
-            fi
-          done
-          echo "::error::dhi.io ne répond pas après 5 essais : réessayer plus tard (Re-run failed jobs)."
-          exit 1
-      # Fabrication essayée jusqu'à 3 fois (pauses de 60 puis 120 s) : dhi.io ne répond
-      # parfois pas aux machines GitHub pendant la lecture des images de base
-      # (« DeadlineExceeded », vu le 2026-10-23). GitHub ne sait pas répéter une étape :
-      # elle est écrite trois fois, chaque essai ne se lançant que si le précédent a échoué.
-      # Le cache rend un nouvel essai rapide (ce qui est déjà fabriqué n'est pas refait).
-      - name: Fabriquer et publier le snapshot ${{ matrix.part }} (essai 1 sur 3)
-        id: build1
-        continue-on-error: true  # un échec mène à l'essai suivant
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
-        with:
-          context: ${{ matrix.part }}
-          platforms: linux/amd64
-          push: true
-          tags: ${{ needs.tag.outputs.image }}/suivi-delivery-${{ matrix.part }}:${{ needs.tag.outputs.tag }}
-          # « revision » dit de quel commit vient l'image (l'étiquette, elle, ne le dit pas).
-          labels: |
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.version=${{ needs.tag.outputs.tag }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.title=suivi-delivery-${{ matrix.part }}
-          # Case « sans cache » cochée : rien n'est réutilisé, et les images de base sont
-          # retéléchargées (sur un push, la case n'existe pas : cache utilisé).
-          no-cache: ${{ inputs.no_cache == true }}
-          pull: ${{ inputs.no_cache == true }}
-          cache-from: type=gha,scope=${{ matrix.part }}
-          cache-to: type=gha,scope=${{ matrix.part }},mode=max
-      - name: Pause avant l'essai 2
-        if: steps.build1.outcome == 'failure'
-        run: |
-          echo "::warning::Fabrication ratée (essai 1 sur 3, souvent dhi.io qui ne répond pas), nouvel essai dans 60 s."
-          sleep 60
-      - name: Fabriquer et publier le snapshot ${{ matrix.part }} (essai 2 sur 3)
-        if: steps.build1.outcome == 'failure'
-        id: build2
-        continue-on-error: true  # un échec mène à l'essai suivant
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
-        with:
-          context: ${{ matrix.part }}
-          platforms: linux/amd64
-          push: true
-          tags: ${{ needs.tag.outputs.image }}/suivi-delivery-${{ matrix.part }}:${{ needs.tag.outputs.tag }}
-          # « revision » dit de quel commit vient l'image (l'étiquette, elle, ne le dit pas).
-          labels: |
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.version=${{ needs.tag.outputs.tag }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.title=suivi-delivery-${{ matrix.part }}
-          # Case « sans cache » cochée : rien n'est réutilisé, et les images de base sont
-          # retéléchargées (sur un push, la case n'existe pas : cache utilisé).
-          no-cache: ${{ inputs.no_cache == true }}
-          pull: ${{ inputs.no_cache == true }}
-          cache-from: type=gha,scope=${{ matrix.part }}
-          cache-to: type=gha,scope=${{ matrix.part }},mode=max
-      - name: Pause avant l'essai 3
-        if: steps.build2.outcome == 'failure'
-        run: |
-          echo "::warning::Fabrication ratée (essai 2 sur 3, souvent dhi.io qui ne répond pas), nouvel essai dans 120 s."
-          sleep 120
-      - name: Fabriquer et publier le snapshot ${{ matrix.part }} (essai 3 sur 3)
-        if: steps.build2.outcome == 'failure'
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
-        with:
-          context: ${{ matrix.part }}
-          platforms: linux/amd64
-          push: true
-          tags: ${{ needs.tag.outputs.image }}/suivi-delivery-${{ matrix.part }}:${{ needs.tag.outputs.tag }}
-          # « revision » dit de quel commit vient l'image (l'étiquette, elle, ne le dit pas).
-          labels: |
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.version=${{ needs.tag.outputs.tag }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.title=suivi-delivery-${{ matrix.part }}
-          # Case « sans cache » cochée : rien n'est réutilisé, et les images de base sont
-          # retéléchargées (sur un push, la case n'existe pas : cache utilisé).
-          no-cache: ${{ inputs.no_cache == true }}
-          pull: ${{ inputs.no_cache == true }}
-          cache-from: type=gha,scope=${{ matrix.part }}
-          cache-to: type=gha,scope=${{ matrix.part }},mode=max
+      packages: write  # publier dans ghcr.io
+    with:
+      tag: ${{ needs.tag.outputs.tag }}
+      no_cache: ${{ inputs.no_cache == true }}
+    secrets: inherit  # DHI_USERNAME, DHI_TOKEN (images de base durcies)

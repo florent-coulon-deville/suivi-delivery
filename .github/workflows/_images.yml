@@ -1,0 +1,207 @@
+# Brique réutilisable (appelée par snapshot.yml et release.yml, jamais lancée seule) :
+# fabrique les cinq images (backend, frontend, liquibase, keycloak, postgres) et les publie
+# dans ghcr.io, sous l'étiquette demandée. La même brique sert aux snapshots et aux versions :
+# les images sont toujours fabriquées de la même façon.
+#
+#   snapshot.yml  →  <branche>-snapshot, amd64 seulement, écrasée à chaque push
+#   release.yml   →  <version>, amd64 + arm64 (chacune sur une machine GitHub du bon processeur,
+#                    sans émulation), publiées sous <version>-amd64 / -arm64 puis réunies sous
+#                    <version> : « docker pull » prend tout seul celle qui convient à la machine
+#
+# Chaque Dockerfile récupère lui-même ce dont il a besoin : rien à préparer avant. Les
+# images de base viennent de dhi.io (connexion réessayée en cas de coupure, et fabrication
+# réessayée jusqu'à 3 fois). Le cache de Docker ne refait que ce qui a changé : une image
+# dont le dossier n'a pas bougé est « refabriquée » en quelques secondes.
+#
+# Actions figées par leur empreinte de commit (version en commentaire). Voir docs/ci.md.
+name: Images
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Commit, branche ou étiquette à fabriquer (vide : celui qui a lancé le pipeline)"
+        type: string
+        default: ""
+      tag:
+        description: Étiquette des images publiées (ex. main-snapshot, 0.5.0)
+        type: string
+        required: true
+      multiarch:
+        description: Intel/AMD et ARM (sinon Intel/AMD seulement)
+        type: boolean
+        default: false
+      pull:
+        description: Retélécharger les images de base (correctifs de sécurité)
+        type: boolean
+        default: false
+      no_cache:
+        description: Tout refabriquer, sans cache
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    name: Préparer (registre, commit, processeurs)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    outputs:
+      registry: ${{ steps.prepare.outputs.registry }}
+      revision: ${{ steps.prepare.outputs.revision }}
+      archs: ${{ steps.prepare.outputs.archs }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      - name: Registre, commit et processeurs
+        id: prepare
+        env:
+          MULTIARCH: ${{ inputs.multiarch }}
+        run: |
+          # Le registre n'accepte que des minuscules dans les noms d'images.
+          echo "registry=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+          # Commit réellement fabriqué (une étiquette peut désigner un autre commit que celui du pipeline).
+          echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          if [[ $MULTIARCH == true ]]; then archs='["amd64","arm64"]'; else archs='["amd64"]'; fi
+          echo "archs=$archs" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Image ${{ matrix.part }} (${{ matrix.arch }})
+    needs: prepare
+    # Machines fournies par GitHub, une par type de processeur.
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    timeout-minutes: 40  # jusqu'à 3 essais de fabrication
+    permissions:
+      contents: read
+      packages: write  # publier dans ghcr.io (jeton du dépôt, rien à créer)
+    strategy:
+      fail-fast: false  # une image cassée n'empêche pas de fabriquer les autres
+      matrix:
+        part: [backend, frontend, liquibase, keycloak, postgres]
+        arch: ${{ fromJSON(needs.prepare.outputs.archs) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+      # Connexions faites par Docker lui-même : les jetons ne sont confiés à aucune action tierce.
+      - name: Connexion à ghcr.io
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      - uses: ./.github/actions/connexion-dhi
+        with:
+          username: ${{ secrets.DHI_USERNAME }}
+          token: ${{ secrets.DHI_TOKEN }}
+      # Fabrication essayée jusqu'à 3 fois (pauses de 60 puis 120 s) : dhi.io ne répond
+      # parfois pas aux machines GitHub pendant la lecture des images de base
+      # (« DeadlineExceeded », vu le 2026-10-23). GitHub ne sait pas répéter une étape :
+      # elle est écrite trois fois, chaque essai ne se lançant que si le précédent a échoué.
+      - name: Fabriquer et publier {{ matrix.part }} ({{ matrix.arch }}) (essai 1 sur 3)
+        id: build1
+        continue-on-error: true  # un échec mène à l'essai suivant
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: ${{ matrix.part }}
+          platforms: linux/${{ matrix.arch }}
+          push: true
+          # Une seule plateforme : l'étiquette finale directement ; deux : <étiquette>-<processeur>,
+          # réunies ensuite par le job « merge ».
+          tags: ${{ needs.prepare.outputs.registry }}/suivi-delivery-${{ matrix.part }}:${{ inputs.multiarch && format('{0}-{1}', inputs.tag, matrix.arch) || inputs.tag }}
+          # « source » rattache l'image au dépôt (visibilité, droits) ; « revision » dit de quel
+          # commit elle vient (une étiquette de snapshot, écrasée, ne le dit pas).
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ inputs.tag }}
+            org.opencontainers.image.revision=${{ needs.prepare.outputs.revision }}
+            org.opencontainers.image.title=suivi-delivery-${{ matrix.part }}
+          pull: ${{ inputs.pull || inputs.no_cache }}
+          no-cache: ${{ inputs.no_cache }}
+          cache-from: type=gha,scope=${{ matrix.part }}-${{ matrix.arch }}
+          cache-to: type=gha,scope=${{ matrix.part }}-${{ matrix.arch }},mode=max
+      - name: Pause avant l'essai 2
+        if: steps.build1.outcome == 'failure'
+        run: |
+          echo "::warning::Fabrication ratée (essai 1 sur 3, souvent dhi.io qui ne répond pas), nouvel essai dans 60 s."
+          sleep 60
+      - name: Fabriquer et publier {{ matrix.part }} ({{ matrix.arch }}) (essai 2 sur 3)
+        if: steps.build1.outcome == 'failure'
+        id: build2
+        continue-on-error: true  # un échec mène à l'essai suivant
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: ${{ matrix.part }}
+          platforms: linux/${{ matrix.arch }}
+          push: true
+          # Une seule plateforme : l'étiquette finale directement ; deux : <étiquette>-<processeur>,
+          # réunies ensuite par le job « merge ».
+          tags: ${{ needs.prepare.outputs.registry }}/suivi-delivery-${{ matrix.part }}:${{ inputs.multiarch && format('{0}-{1}', inputs.tag, matrix.arch) || inputs.tag }}
+          # « source » rattache l'image au dépôt (visibilité, droits) ; « revision » dit de quel
+          # commit elle vient (une étiquette de snapshot, écrasée, ne le dit pas).
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ inputs.tag }}
+            org.opencontainers.image.revision=${{ needs.prepare.outputs.revision }}
+            org.opencontainers.image.title=suivi-delivery-${{ matrix.part }}
+          pull: ${{ inputs.pull || inputs.no_cache }}
+          no-cache: ${{ inputs.no_cache }}
+          cache-from: type=gha,scope=${{ matrix.part }}-${{ matrix.arch }}
+          cache-to: type=gha,scope=${{ matrix.part }}-${{ matrix.arch }},mode=max
+      - name: Pause avant l'essai 3
+        if: steps.build2.outcome == 'failure'
+        run: |
+          echo "::warning::Fabrication ratée (essai 2 sur 3, souvent dhi.io qui ne répond pas), nouvel essai dans 120 s."
+          sleep 120
+      - name: Fabriquer et publier {{ matrix.part }} ({{ matrix.arch }}) (essai 3 sur 3)
+        if: steps.build2.outcome == 'failure'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: ${{ matrix.part }}
+          platforms: linux/${{ matrix.arch }}
+          push: true
+          # Une seule plateforme : l'étiquette finale directement ; deux : <étiquette>-<processeur>,
+          # réunies ensuite par le job « merge ».
+          tags: ${{ needs.prepare.outputs.registry }}/suivi-delivery-${{ matrix.part }}:${{ inputs.multiarch && format('{0}-{1}', inputs.tag, matrix.arch) || inputs.tag }}
+          # « source » rattache l'image au dépôt (visibilité, droits) ; « revision » dit de quel
+          # commit elle vient (une étiquette de snapshot, écrasée, ne le dit pas).
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ inputs.tag }}
+            org.opencontainers.image.revision=${{ needs.prepare.outputs.revision }}
+            org.opencontainers.image.title=suivi-delivery-${{ matrix.part }}
+          pull: ${{ inputs.pull || inputs.no_cache }}
+          no-cache: ${{ inputs.no_cache }}
+          cache-from: type=gha,scope=${{ matrix.part }}-${{ matrix.arch }}
+          cache-to: type=gha,scope=${{ matrix.part }}-${{ matrix.arch }},mode=max
+
+  merge:
+    name: Réunir amd64 et arm64 (${{ matrix.part }})
+    needs: [prepare, build]
+    if: inputs.multiarch
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        part: [backend, frontend, liquibase, keycloak, postgres]
+    steps:
+      - name: Connexion à ghcr.io
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      # Commande de Docker lui-même : crée <étiquette>, qui renvoie vers les deux images déjà
+      # publiées (rien n'est refabriqué ni recopié).
+      - name: Publier ${{ matrix.part }}:<étiquette> (amd64 + arm64)
+        env:
+          IMAGE: ${{ needs.prepare.outputs.registry }}/suivi-delivery-${{ matrix.part }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          docker buildx imagetools create --tag "$IMAGE:$TAG" "$IMAGE:$TAG-amd64" "$IMAGE:$TAG-arm64"
+          docker buildx imagetools inspect "$IMAGE:$TAG"

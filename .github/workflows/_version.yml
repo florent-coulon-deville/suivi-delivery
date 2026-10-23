@@ -1,0 +1,29 @@
+# Brique réutilisable (appelée par snapshot.yml et release.yml, jamais lancée seule) :
+# toute l'application a un seul numéro de version, partout le même (backend, uv.lock, frontend,
+# chart Helm). Voir cicd/check_versions.py et docs/ci.md § 5.
+name: Version unique
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Commit, branche ou étiquette à vérifier (vide : celui qui a lancé le pipeline)"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: Version unique (backend, frontend, chart)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      # Le Python de la machine GitHub suffit (aucune bibliothèque à installer).
+      - name: Comparer les numéros de version
+        run: python3 cicd/check_versions.py

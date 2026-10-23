@@ -1,28 +1,23 @@
-# CI du backend (API Python) : erreurs courantes, mise en forme, types et tests.
-# Mêmes contrôles que sur le poste (voir CLAUDE.md, « Commandes »). Rien n'est déployé.
+# Brique réutilisable (appelée par snapshot.yml et release.yml, jamais lancée seule) :
+# vérifications du backend (API Python). Mêmes contrôles que sur le poste (CLAUDE.md, « Commandes »).
 # Les tests tournent deux fois : en mémoire (job « backend »), puis sur une vraie base
 # PostgreSQL dont la structure est créée par Liquibase (module liquibase/, job « postgresql »,
-# docs/postgresql.md). Se lance aussi quand la structure (liquibase/) change.
+# docs/postgresql.md).
 #
 # Actions figées par leur empreinte de commit, version en commentaire (« # v7.0.1 »). Voir docs/ci.md.
-name: CI backend
+name: Tests backend
 
 on:
-  pull_request:
-    branches: [main]
-    paths: ["backend/**", "liquibase/**", "postgres/**", ".github/workflows/ci-backend.yml"]
-  push:
-    branches: [main]
-    paths: ["backend/**", "liquibase/**", "postgres/**", ".github/workflows/ci-backend.yml"]
+  workflow_call:
+    inputs:
+      ref:
+        description: "Commit, branche ou étiquette à vérifier (vide : celui qui a lancé le pipeline)"
+        type: string
+        default: ""
 
 # Droits minimaux : lire le code, rien d'autre.
 permissions:
   contents: read
-
-# Une nouvelle poussée sur la même branche annule la vérification précédente, devenue inutile.
-concurrency:
-  group: ci-backend-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   backend:
@@ -35,6 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          ref: ${{ inputs.ref }}
           persist-credentials: false  # le jeton GitHub n'est pas gardé après la récupération du code
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
         with:
@@ -56,11 +52,12 @@ jobs:
   postgresql:
     name: Backend (structure Liquibase et tests sur PostgreSQL)
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     # Une base PostgreSQL de test, à côté du job (image durcie, la même que sur le poste ; le
     # schéma de nos tables, que l'image du projet crée au premier démarrage, est créé à la main ici).
     # Mot de passe propre à chaque exécution (numéro du job), jamais écrit en clair : la base
-    # n'existe que le temps du job, sur la machine de la CI.
+    # n'existe que le temps du job, sur la machine de la CI. Image téléchargée par GitHub
+    # lui-même avant le job : pas de nouvel essai possible si dhi.io ne répond pas.
     services:
       postgres:
         image: dhi.io/postgres:18.6-alpine3.24
@@ -82,38 +79,17 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          ref: ${{ inputs.ref }}
           persist-credentials: false
       - name: Préparer la base (schéma de nos tables, comme postgres/initialization/01-schemas.sh)
         env:
           PGPASSWORD: ${{ format('ci-{0}-{1}', github.run_id, github.run_attempt) }}
         run: psql -h localhost -U suivi_delivery -d suivi_delivery_tests -v ON_ERROR_STOP=1 -c "create schema suivi_delivery"
-      # Image Liquibase durcie (Docker Hardened Images, dhi.io) : connexion avec un compte Docker.
-      - name: Connexion à dhi.io
-        env:
-          DHI_USERNAME: ${{ secrets.DHI_USERNAME }}
-          DHI_TOKEN: ${{ secrets.DHI_TOKEN }}
-        # Jusqu'à 5 essais, pause de 30 s, 60 s, 90 s, 120 s entre deux : une coupure passagère
-        # de dhi.io (vue le 2026-10-23 depuis les machines GitHub) ne fait plus échouer la CI.
-        # Avant chaque essai, on vérifie que dhi.io répond (401 attendu : il demande une
-        # connexion) : le journal distingue ainsi « dhi.io injoignable » de « jeton refusé ».
-        run: |
-          for attempt in 1 2 3 4 5; do
-            answer=$(curl -s -o /dev/null --max-time 20 -w '%{http_code} en %{time_total} s' https://dhi.io/v2/ || true)
-            if [[ $answer == 401* ]]; then
-              echo "dhi.io répond ($answer)."
-            else
-              echo "::warning::dhi.io ne répond pas normalement (réponse : ${answer:-aucune})."
-            fi
-            if echo "$DHI_TOKEN" | docker login dhi.io --username "$DHI_USERNAME" --password-stdin; then
-              exit 0
-            fi
-            if [[ $attempt -lt 5 ]]; then
-              echo "::warning::Connexion à dhi.io ratée (essai $attempt sur 5), nouvel essai dans $((attempt * 30)) s."
-              sleep $((attempt * 30))
-            fi
-          done
-          echo "::error::dhi.io ne répond pas après 5 essais : réessayer plus tard (Re-run failed jobs)."
-          exit 1
+      # Image Liquibase durcie (dhi.io) : connexion avec un compte Docker, réessayée si besoin.
+      - uses: ./.github/actions/connexion-dhi
+        with:
+          username: ${{ secrets.DHI_USERNAME }}
+          token: ${{ secrets.DHI_TOKEN }}
       - name: Appliquer la structure de la base (image Liquibase du projet)
         env:
           LIQUIBASE_COMMAND_URL: jdbc:postgresql://localhost:5432/suivi_delivery_tests?currentSchema=suivi_delivery

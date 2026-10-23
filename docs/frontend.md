@@ -192,7 +192,7 @@ avant, par `npm ci --ignore-scripts` puis `npm run build`, et l'image copie seul
 | Où | Qui construit le site |
 | --- | --- |
 | Poste | `docker-deploy` et `k8s-deploy` (en fabriquant l'image) |
-| GitHub | `ci-docker.yml`, `publication.yml` (étapes « Construire le site du frontend ») |
+| GitHub | `_images.yml` (appelée par les pipelines `snapshot.yml` et `release.yml`) |
 
 **Le même site pour amd64 et arm64** :
 
