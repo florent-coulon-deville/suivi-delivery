@@ -2,110 +2,31 @@
 
 - **Documentation interactive (Swagger)** : <http://localhost:8000/api/docs>. Le bouton « Try it out » permet de tester chaque appel.
 - Tout est servi sous `/api`, et les échanges sont en JSON.
-- Les données sont gardées dans une base PostgreSQL (voir [postgresql.md](postgresql.md)). Sans base (`APP_DB_HOST` absente), elles sont en mémoire et perdues à l'arrêt.
-- **Chaque appel doit porter un jeton d'accès de Keycloak** (voir § 0). Dans Swagger : bouton **Authorize**, puis la page de connexion de l'outil.
+- Les données sont gardées dans un fichier SQLite (voir [sqlite.md](sqlite.md)). Sans fichier (`APP_DB_FILE` absente), elles sont en mémoire et perdues à l'arrêt.
+- **Pas de connexion** (version légère) : aucun jeton, aucun rôle ; tout appel peut lire et saisir. L'API n'est pas exposée hors du cluster : seule l'interface l'appelle.
 
-## 0. Connexion et droits
-
-Les comptes, les mots de passe et la fabrication des jetons sont gérés par **Keycloak** (guide : [keycloak.md](keycloak.md)). L'API ne fait que **vérifier** chaque jeton (signature de Keycloak, émetteur, destinataire `suivi-delivery-api`, expiration) et y lire le rôle.
-
-### Les comptes
-
-| Sorte | Se connecte avec | Exemple |
-| --- | --- | --- |
-| `PERSON` | identifiant + mot de passe, sur la page de connexion de l'outil | un utilisateur de l'interface |
-| `PROGRAM` | identifiant + clé (client credentials), clé générée par Keycloak et affichée une seule fois | un script, l'outil de déploiement |
-
-| Rôle | Droits |
-| --- | --- |
-| `VIEWER` | lire les données (`GET`) |
-| `EDITOR` | lire, et modifier les **livraisons** (`POST`, `PUT`, `PATCH`, `DELETE`) : versions de module, paramètres, installations |
-| `ADMIN` | tout : aussi la **structure** (environnements, clusters, zones réseau, applications, namespaces, modules, dépendances, compatibilités, emplacements), les comptes (`/api/accounts`) et le journal |
-
-La **structure** est le paramétrage général, fait par l'administrateur. Les développeurs y saisissent ensuite leurs **livraisons**.
-
-- Un rôle insuffisant reçoit un 403 (« Droits insuffisants : rôle ADMIN requis »).
-- Un compte sans rôle ne peut rien faire.
-- Le rôle est lu **dans le jeton**. Un rôle retiré, ou un compte désactivé, prend donc effet à la fin du jeton en cours (5 minutes au plus) : Keycloak refuse ensuite d'en donner un nouveau.
-
-Le compte **`admin`** est créé par Keycloak à son premier démarrage, avec le mot de passe `APP_ADMIN_PASSWORD` (voir [deploiement.md](deploiement.md)). **Il reste toujours au moins un administrateur actif** : supprimer, désactiver ou rétrograder le dernier est refusé (409).
-
-### Obtenir un jeton
-
-Les jetons viennent de Keycloak, servi sous l'adresse de l'interface (sur le poste : `http://localhost:8080/auth`). Adresses :
-
-| | Adresse |
-| --- | --- |
-| page de connexion | `<frontend>/auth/realms/suivi-delivery/protocol/openid-connect/auth` |
-| jetons | `<frontend>/auth/realms/suivi-delivery/protocol/openid-connect/token` |
-| description complète (OpenID Connect) | `<frontend>/auth/realms/suivi-delivery/.well-known/openid-configuration` |
-
-- **Une personne, à la main** (Swagger, Bruno) : on passe par la page de connexion (client `suivi-delivery-tools`). Tout est déjà réglé :
-  - Swagger : bouton **Authorize**, *authorizationCode* ;
-  - Bruno : ouvrir la collection du projet ([`bruno/`](../bruno/), *Open Collection*), puis *Get Access Token* dans l'onglet *Auth* de la collection.
-- **Une personne, dans un script** : un **jeton hors ligne**, obtenu une fois en se connectant dans le navigateur. C'est un jeton de longue durée, qui sert à obtenir des jetons d'accès sans se reconnecter :
-
-  ```bash
-  cd backend && uv run python -m scripts.login     # affiche une adresse et un code, puis le jeton hors ligne
-  ```
-
-  À chaque lancement, le script l'échange contre un jeton d'accès (`grant_type=refresh_token`, client `suivi-delivery-tools`).
-  - Il reste valable 30 jours sans servir, et un an au plus.
-  - `DELETE /api/me/offline-access` (« Mon compte » → « Fermer mes accès par script ») les annule tous.
-- **Un programme** : son identifiant et sa clé (créés dans l'écran Comptes) :
-
-  ```bash
-  curl -X POST http://localhost:8080/auth/realms/suivi-delivery/protocol/openid-connect/token \
-       -d grant_type=client_credentials -d client_id=deployment -d 'client_secret=…'
-  # 200 {"access_token": "eyJ…", "expires_in": 300, "token_type": "Bearer", …}
-  ```
-
-Puis, à chaque appel : `Authorization: Bearer eyJ…`. Les jetons d'accès durent 5 minutes.
-
-La description OpenAPI (`/api/openapi.json`) déclare la connexion **une fois pour toute l'API**, avec les adresses complètes de Keycloak. Quand on l'importe dans Bruno ou Postman, la connexion est donc déjà réglée.
-
-### Comptes : `/api/accounts` (ADMIN) et `/api/me`
-
-Les comptes sont dans Keycloak. Ces routes les gèrent pour l'écran Comptes, en appelant Keycloak.
-
-- L'identifiant d'un compte (`id`) est celui de Keycloak (lettres, chiffres et tirets).
-- Si Keycloak ne répond pas : 503.
-
-| Appel | Rôle |
-| --- | --- |
-| `GET /api/accounts`, `GET /api/accounts/{id}` | lister, lire (jamais de mot de passe ni de clé) |
-| `POST /api/accounts` | créer : `identifier`★, `name`★, `kind`★, `role`★, `password` (★ pour une PERSON : mot de passe **provisoire**, à changer à sa première connexion ; interdit pour un PROGRAM). Pour un PROGRAM, la réponse contient sa **clé**, affichée une seule fois. 409 si l'identifiant est pris (personne ou programme) |
-| `PATCH /api/accounts/{id}` | modifier `name`, `role`, `active`, `password` (nouveau mot de passe provisoire, PERSON). Désactiver, ou donner un mot de passe, coupe ses connexions en cours |
-| `DELETE /api/accounts/{id}` | supprimer |
-| `POST /api/accounts/{id}/key` | nouvelle clé d'un PROGRAM (l'ancienne ne marche plus) |
-| `GET /api/me` | qui suis-je (d'après mon jeton : identifiant, nom, sorte, rôle) et mon thème de couleurs (`theme`) |
-| `PATCH /api/me` `{"theme": "AUTO" \| "LIGHT" \| "DARK"}` | mes préférences (le thème de l'interface) → 200 ; 422 valeur inconnue |
-| `DELETE /api/me/offline-access` | fermer mes accès par script (jetons hors ligne) → 204 ; 422 pour un programme |
-
-Pas de `PUT /api/accounts/{id}` (405) : un mot de passe ne se « remplace » pas avec le reste. Le mot de passe se change sur la page de connexion de l'outil (« Mon compte » → « Changer mon mot de passe »), jamais par l'API.
+## 0. Routes particulières
 
 ### Journal des actions : `GET /api/audit-log`
 
 Chaque saisie acceptée (création, modification, suppression) est notée **automatiquement**, avec :
 
 - la date ;
-- l'auteur : son identifiant Keycloak, son identifiant de connexion et sa sorte (PERSON ou PROGRAM) ;
-- l'objet : le nom de sa table (ou `accounts`) et son identifiant ;
+- l'objet : le nom de sa table et son identifiant ;
 - l'action : `CREATE`, `UPDATE` ou `DELETE` ;
 - l'objet **avant** et **après**.
 
-Ne sont pas notées : les saisies refusées, et les connexions. Un mot de passe ou une clé n'apparaît jamais en clair : on note seulement `"changé"`.
+Pas d'auteur : cette version n'a pas de comptes. Ne sont pas notées : les saisies refusées.
 
-Le journal se lit seulement (`POST`, `PUT`, `PATCH`, `DELETE` : 405), les plus récentes d'abord. Il est **réservé à l'ADMIN** (403 pour les autres rôles), qui voit tout : les données et les comptes.
+Le journal se lit seulement (`POST`, `PUT`, `PATCH`, `DELETE` : 405), les plus récentes d'abord.
 
 ```bash
-curl "$API/audit_log?object=installations&since=2026-10-01T00:00:00&limit=50"
-# 200 [{"id": 42, "date": "2026-10-12T09:15:03Z", "auteur_id": "5f1c…", "auteur": "paul",
-#       "auteur_sorte": "PERSON", "objet": "installations", "objet_id": "7", "action": "CREATE",
-#       "avant": null, "apres": {"id": 7, "emplacement_id": 1, …}}, …]
+curl "$API/audit-log?object=installations&since=2026-10-01T00:00:00&limit=50"
+# 200 [{"id": 42, "date": "2026-10-12T09:15:03Z", "object": "installations", "object_id": "7",
+#       "action": "CREATE", "before": null, "after": {"id": 7, "slot_id": 1, …}}, …]
 ```
 
-Filtres, tous facultatifs : `author` (identifiant), `object`, `object_id`, `action`, `since` et `until` (bornes comprises ; sans fuseau horaire : UTC), `limit` (200 par défaut, 1000 au plus).
+Filtres, tous facultatifs : `object`, `object_id`, `action`, `since` et `until` (bornes comprises ; sans fuseau horaire : UTC), `limit` (200 par défaut, 1000 au plus).
 
 ### Export et import de la configuration : `/api/configuration`
 
@@ -113,7 +34,7 @@ Toute la configuration dans un **fichier Excel** (`.xlsx`), pour trois usages : 
 
 #### Export : `GET /api/configuration`
 
-Le fichier à télécharger. Ouvert dès le rôle **VIEWER** : on n'exporte que ce qu'on peut déjà lire.
+Le fichier à télécharger.
 
 ```bash
 curl -OJ "$API/configuration"
@@ -149,7 +70,7 @@ Détail des colonnes : `SHEETS` dans `backend/app/configuration.py`.
 
 #### Import : `PATCH /api/configuration` (mode fusion)
 
-Le corps de la requête est le **fichier lui-même** (`Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, 10 Mo au plus). C'est la seule route de l'API qui ne reçoit pas du JSON. Elle est réservée à l'**ADMIN**.
+Le corps de la requête est le **fichier lui-même** (`Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, 10 Mo au plus). C'est la seule route de l'API qui ne reçoit pas du JSON.
 
 La méthode est `PATCH`, car l'import fusionne sans rien retirer. Un remplacement complet (`PUT`, pour restaurer une sauvegarde) est prévu.
 
@@ -197,10 +118,6 @@ Cas particuliers :
 | 413 | plus de 10 Mo |
 | 415 | `Content-Type` autre que celui d'Excel |
 | 422 | pas le fichier de l'export : onglet inconnu, colonnes différentes, autre numéro de format (« À propos ») |
-
-### Sans jeton
-
-Seuls répondent sans jeton de connexion : Swagger (`/api/docs`, `/api/openapi.json`) et les probes (`/livez`, `/readyz`, `/startupz`).
 
 ## 1. Conventions
 
@@ -273,8 +190,8 @@ Les deux modifient un élément existant. La différence tient à ce qu'on envoi
 | | **204** No Content | Réussi, pas de corps de réponse | `DELETE`, `OPTIONS` |
 | **3xx** redirection | **307** | URL terminée par `/` : redirigée vers la même URL sans `/` | `/api/modules/` → `/api/modules` |
 | **4xx** erreur de la demande | **400** Bad Request | Requête illisible : corps qui n'est pas du JSON valide, ou paramètre d'URL invalide | `{not from json` ; `?type=UNKNOWN` ; `?application_id=abc` |
-| | **401** Unauthorized | Pas de jeton, jeton invalide ou expiré, ou pas fait pour l'outil ; en-tête `WWW-Authenticate: Bearer` | appel sans `Authorization` |
-| | **403** Forbidden | Connecté, mais le rôle ne suffit pas | `POST` avec un compte VIEWER |
+| | **401** Unauthorized | Pas utilisé dans cette version (pas de connexion) | |
+| | **403** Forbidden | Pas utilisé dans cette version (pas de rôles) | |
 | | **404** Not Found | L'URL ne désigne aucun élément | `/api/applications/999`, `/api/applications/abc` |
 | | **405** Method Not Allowed | Méthode impossible sur cette URL ; l'en-tête `Allow` donne les méthodes possibles | `DELETE /api/applications` |
 | | **409** Conflict | Demande valide, mais contraire à l'état des données | identifiant déjà pris ; suppression d'un élément encore utilisé ; versions incompatibles ; saisie refusée par les contrôles de la base (filet de sécurité : « Saisie refusée par la base de données : … ») |
@@ -341,7 +258,7 @@ Précisions :
   En `PATCH`, seules la condition et les versions se modifient.
 - **Emplacements** : le module doit appartenir à l'application du namespace (422). Changer de module n'est possible que tant que l'emplacement n'a aucune installation (409).
 - **Namespaces** : le cluster doit être du même type (prod / hors prod) que l'environnement (422).
-- **Création groupée de namespaces** : `POST /api/namespaces/batch` (ADMIN) crée le même namespace sur plusieurs clusters.
+- **Création groupée de namespaces** : `POST /api/namespaces/batch` crée le même namespace sur plusieurs clusters.
   - Corps : les champs d'un namespace, mais avec `cluster_ids`★ (une liste, au moins un, sans doublon) au lieu de `cluster_id`.
   - `with_slots` (défaut `true`) : crée aussi, dans chaque namespace, un emplacement par module de l'application. Le nom de release est le code du module (`_` remplacé par `-`).
   - **Tout ou rien** : au moindre refus (409 ou 422, le message nomme le cluster), rien n'est créé.
@@ -377,7 +294,7 @@ Suppression refusée (409) :
 
 ### Santé (probes Kubernetes)
 
-Ces adresses servent à Kubernetes / OpenShift, qui les appelle régulièrement pour surveiller l'API. Elles sont hors de `/api`, sans jeton, et ne montrent aucune donnée (réglage dans [deploiement.md](deploiement.md#8-kubernetes--openshift--les-probes)).
+Ces adresses servent à Kubernetes / OpenShift, qui les appelle régulièrement pour surveiller l'API. Elles sont hors de `/api` et ne montrent aucune donnée (réglage dans [deploiement.md](deploiement.md#8-kubernetes--openshift--les-probes)).
 
 | Route | Question | 200 `{"status": "ok"}` si… | Sinon |
 | --- | --- | --- | --- |
@@ -391,11 +308,6 @@ On crée une application, un environnement, un cluster, puis un namespace et un 
 
 ```bash
 API=http://localhost:8000/api
-
-# Un jeton d'accès (5 minutes) : par exemple celui de Swagger ou de Bruno, ou d'un programme
-# (voir § 0), ajouté à chaque appel (dans ce terminal, « curl » l'envoie tout seul)
-TOKEN='eyJ…'
-alias curl='curl -H "Authorization: Bearer $JETON"'
 
 curl -X POST $API/applications -H "content-type: application/json" \
      -d '{"identifier": "paiement", "name": "Paiement", "trigram": "ABC"}'
@@ -453,18 +365,13 @@ curl "$API/installations?slot_id=1"    # historique de l'emplacement, le plus r�
 | `main.py` | Crée l'application FastAPI et branche les routes |
 | `schemas.py` | Forme des données échangées et règles de saisie (Pydantic) |
 | `storage.py` | Les opérations sur les tables (`list_all`, `add`…), et leur version en mémoire |
-| `storage_postgres.py` | Les mêmes opérations dans la base PostgreSQL |
-| `transactions.py` | Une transaction par requête, enregistrée juste avant la réponse ; une écriture à la fois |
+| `storage_sqlite.py`, `sql/` | Les mêmes opérations dans le fichier SQLite, et la structure de la base (appliquée au démarrage) |
+| `transactions.py` | Une transaction par requête, enregistrée juste avant la réponse ; une requête à la fois |
 | `http.py` | Règles HTTP communes : `HEAD`, `OPTIONS`, en-tête `Allow`, 415, et le choix entre 400, 404 et 422 |
 | `routes/__init__.py` | Vérifications communes : 404, 409 (doublon ou élément utilisé), 422 (référence inexistante), en-tête `Location` |
 | `routes/<resource>.py` | Les routes d'une ressource : lister, lire, créer, modifier, supprimer |
 
 | `routes/enumerations.py` | Les valeurs des listes fermées, pour l'interface |
-| `access.py` | Contrôle d'accès : jeton (401) et rôle (403) |
-| `security.py` | Vérification des jetons de Keycloak (signature, émetteur, destinataire, expiration), lecture de l'identité et du rôle |
-| `directory.py` | Les comptes dans Keycloak (son API d'administration), et leur version en mémoire pour les tests |
-| `routes/accounts.py`, `routes/me.py` | Gestion des comptes, mon compte |
-| `routes/documentation.py` | Swagger et description OpenAPI, retouchée pour Bruno (adresses de Keycloak) |
 | `routes/health.py` | Les probes Kubernetes `/startupz`, `/readyz`, `/livez` (hors de `/api`) |
 | `configuration.py`, `routes/configuration.py` | Toute la configuration dans un fichier Excel (export), objets désignés par leurs codes |
 | `import_configuration.py` | Import du fichier de l'export (fusion) : lecture, rapprochement par codes, aperçu, tout ou rien |
@@ -479,4 +386,4 @@ Le trajet d'une requête, par exemple `POST /api/modules` :
 3. **Le stockage** enregistre le module et la base lui attribue un `id`.
 4. **La route** répond **201** avec l'en-tête `Location`, juste après l'enregistrement de la transaction.
 
-Pour ajouter une ressource : créer les schémas dans `schemas.py`, une table dans `storage.py` et dans la base (un changement Liquibase, voir [postgresql.md § 4](postgresql.md#4-faire-évoluer-la-structure)), un fichier `routes/<resource>.py` sur le modèle des autres, le brancher dans `main.py`, puis écrire `tests/test_<resource>.py`.
+Pour ajouter une ressource : créer les schémas dans `schemas.py`, une table dans `storage.py` et dans la base (un nouveau fichier de `app/sql/`, voir [sqlite.md](sqlite.md#faire-évoluer-la-structure)), un fichier `routes/<resource>.py` sur le modèle des autres, le brancher dans `main.py`, puis écrire `tests/test_<resource>.py`.

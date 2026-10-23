@@ -16,7 +16,6 @@ export const OBJECTS: { table: string; label: string }[] = [
   { table: "parameters", label: "Paramètre" },
   { table: "slots", label: "Emplacement" },
   { table: "installations", label: "Installation" },
-  { table: "accounts", label: "Compte" },
 ];
 
 export const ACTIONS: Record<AuditEntry["action"], string> = {

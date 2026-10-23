@@ -4,6 +4,10 @@ __pycache__/
 .ruff_cache/
 .env
 *.db
+# Bases SQLite de l'API (APP_DB_FILE) et leur journal d'écriture (-wal, -shm)
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
 .DS_Store
 
 # Réglages des conteneurs sur le poste (un seul fichier ; modèles : <module>/docker.example.env)

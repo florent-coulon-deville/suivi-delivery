@@ -6,10 +6,8 @@ Depuis backend/ :
 
 Le serveur (uvicorn) écoute sur APP_HOST:APP_PORT, avec le niveau de journaux APP_LOG_LEVEL.
 
-Un seul processus par conteneur (workers=1). Avec la base PostgreSQL, on peut lancer
-plusieurs conteneurs (exemplaires) de l'API : ils partagent les mêmes données, et une seule
-écriture passe à la fois (app/storage_postgres.py). Sans base (données en mémoire),
-un seul exemplaire : deux exemplaires ne se verraient pas l'un l'autre.
+Un seul processus (workers=1), et un seul exemplaire de l'API à la fois : la base SQLite est
+un fichier, lu et écrit par ce seul processus, une requête à la fois (app/storage_sqlite.py).
 """
 
 import sys
@@ -32,7 +30,7 @@ def main() -> None:
         log_level=settings.log_level,
         reload="--reload" in sys.argv[1:],
         workers=1,
-        # Derrière le relais du frontend (nginx) : garder l'adresse et le protocole d'origine.
+        # Derrière un relais (Route OpenShift) : garder l'adresse et le protocole d'origine.
         proxy_headers=True,
         forwarded_allow_ips="*",
     )

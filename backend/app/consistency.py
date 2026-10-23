@@ -16,7 +16,7 @@ un essai (apply_if_consistent) :
   1. la saisie est faite ;
   2. les règles sont vérifiées ;
   3. si une règle est cassée, la saisie est annulée et rien n'est modifié.
-En mémoire, l'essai se fait sur une copie des données ; dans PostgreSQL, dans un point de
+En mémoire, l'essai se fait sur une copie des données ; dans SQLite, dans un point de
 sauvegarde de la transaction (app/storage.py, Storage.attempt).
 
 Import de la configuration (app/import_configuration.py) : le fichier est jugé en entier, pas

@@ -5,7 +5,7 @@
    - OPTIONS : 204 avec l'en-tête Allow, qui liste les méthodes possibles sur l'URL.
    - 405     : l'en-tête Allow liste toutes les méthodes possibles sur l'URL (pas seulement une).
    - 415     : le corps envoyé avec POST, PUT ou PATCH doit être du JSON (Content-Type: application/json) ;
-               une requête sans corps (ex. POST /api/accounts/{id}/key) n'est pas concernée ;
+               une requête sans corps n'est pas concernée ;
                sauf les chemins qui reçoivent un fichier (import de la configuration : un fichier Excel).
 
 2. Erreurs de requête (invalid_request), au lieu d'un 422 pour tout :

@@ -5,146 +5,191 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "global": { "type": "object" },
+    "global": {
+      "type": "object"
+    },
     "images": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["backend", "frontend", "liquibase", "keycloak", "postgresql", "pullPolicy"],
+      "required": [
+        "backend",
+        "frontend",
+        "pullPolicy"
+      ],
       "properties": {
-        "registry": { "type": "string", "description": "placé devant chaque dépôt ; vide : noms courts (kind)" },
-        "backend": { "$ref": "#/definitions/image" },
-        "frontend": { "$ref": "#/definitions/image" },
-        "liquibase": { "$ref": "#/definitions/image" },
-        "keycloak": { "$ref": "#/definitions/image" },
-        "postgresql": { "$ref": "#/definitions/image" },
-        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+        "registry": {
+          "type": "string",
+          "description": "placé devant chaque dépôt ; vide : noms courts (kind)"
+        },
+        "backend": {
+          "$ref": "#/definitions/image"
+        },
+        "frontend": {
+          "$ref": "#/definitions/image"
+        },
+        "pullPolicy": {
+          "type": "string",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ]
+        }
       }
     },
     "registry": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "existingSecret": { "type": "string" },
-        "server": { "type": "string", "description": "values-secret.yaml" },
-        "user": { "type": "string", "description": "values-secret.yaml" },
-        "password": { "type": "string", "description": "values-secret.yaml" }
+        "existingSecret": {
+          "type": "string"
+        },
+        "server": {
+          "type": "string",
+          "description": "values-secret.yaml"
+        },
+        "user": {
+          "type": "string",
+          "description": "values-secret.yaml"
+        },
+        "password": {
+          "type": "string",
+          "description": "values-secret.yaml"
+        }
       }
     },
     "application": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["logLevel", "swagger"],
+      "required": [
+        "logLevel",
+        "swagger"
+      ],
       "properties": {
-        "instanceName": { "type": "string", "maxLength": 40 },
-        "frontendUrl": {
+        "instanceName": {
           "type": "string",
-          "description": "adresse publique de l'interface (APP_FRONTEND_URL), qui sert aussi Keycloak sous /auth ; vide : déduite de la Route ou de l'Ingress",
-          "pattern": "^(https?://[^/?#]+(/[^?#]*)?)?$"
+          "maxLength": 40
         },
-        "instanceColor": { "type": "string", "maxLength": 40 },
-        "logLevel": { "type": "string", "enum": ["critical", "error", "warning", "info", "debug", "trace"] },
-        "swagger": { "type": "boolean" },
-        "existingSecret": { "type": "string" },
-        "adminPassword": {
+        "instanceColor": {
           "type": "string",
-          "description": "values-secret.yaml : mot de passe initial du compte admin (importé une fois dans Keycloak) ; vide, ou 12 caractères au moins",
-          "anyOf": [{ "maxLength": 0 }, { "minLength": 12 }]
+          "maxLength": 40
         },
-        "keycloakClientSecret": {
+        "logLevel": {
           "type": "string",
-          "description": "values-secret.yaml (APP_KEYCLOAK_CLIENT_SECRET) ; vide, ou 16 caractères au moins",
-          "anyOf": [{ "maxLength": 0 }, { "minLength": 16 }]
+          "enum": [
+            "critical",
+            "error",
+            "warning",
+            "info",
+            "debug",
+            "trace"
+          ]
+        },
+        "swagger": {
+          "type": "boolean"
         }
       }
-    },
-    "database": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["internal", "port", "name", "user", "schema", "keycloakUser", "keycloakSchema", "storage", "resources"],
-      "properties": {
-        "internal": { "type": "boolean", "description": "true : PostgreSQL installé par le chart ; false : base fournie" },
-        "host": { "type": "string" },
-        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
-        "name": { "type": "string", "pattern": "^[a-z_][a-z0-9_]*$", "maxLength": 63 },
-        "user": { "type": "string", "pattern": "^[a-z_][a-z0-9_]*$", "maxLength": 63 },
-        "schema": { "type": "string", "pattern": "^[a-z_][a-z0-9_]*$", "maxLength": 63 },
-        "keycloakUser": { "type": "string", "pattern": "^[a-z_][a-z0-9_]*$", "maxLength": 63 },
-        "keycloakSchema": { "type": "string", "pattern": "^[a-z_][a-z0-9_]*$", "maxLength": 63 },
-        "password": { "type": "string", "description": "values-secret.yaml" },
-        "keycloakPassword": { "type": "string", "description": "values-secret.yaml : mot de passe de l'utilisateur de Keycloak" },
-        "storage": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["size"],
-          "properties": {
-            "size": { "type": "string", "pattern": "^[0-9]+(Mi|Gi|Ti)$" },
-            "className": { "type": "string" }
-          }
-        },
-        "resources": { "$ref": "#/definitions/resources" }
-      },
-      "if": { "properties": { "internal": { "const": false } } },
-      "then": { "required": ["host"], "properties": { "host": { "minLength": 1, "description": "obligatoire avec une base fournie" } } }
     },
     "backend": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["replicas", "resources"],
+      "required": [
+        "replicas",
+        "storage",
+        "resources"
+      ],
       "properties": {
-        "replicas": { "type": "integer", "minimum": 0, "maximum": 10, "description": "0 : API arrêtée" },
-        "resources": { "$ref": "#/definitions/resources" }
-      }
-    },
-    "keycloak": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["consoleUrl", "replicas", "resources"],
-      "properties": {
-        "consoleUrl": {
-          "type": "string",
-          "description": "adresse de la console d'administration (KC_HOSTNAME_ADMIN), vue du navigateur",
-          "pattern": "^https?://[^/?#]+(/[^?#]*)?$"
+        "replicas": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "1 : l'API tourne ; 0 : arrêtée. Jamais plus (base SQLite sur un seul disque)"
         },
-        "replicas": { "type": "integer", "minimum": 1, "maximum": 10 },
-        "resources": { "$ref": "#/definitions/resources" },
-        "adminPassword": { "type": "string", "description": "values-secret.yaml : administrateur provisoire de Keycloak (console)" }
+        "storage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "size"
+          ],
+          "properties": {
+            "size": {
+              "type": "string",
+              "pattern": "^[0-9]+(Mi|Gi|Ti)$"
+            },
+            "className": {
+              "type": "string"
+            }
+          }
+        },
+        "resources": {
+          "$ref": "#/definitions/resources"
+        }
       }
     },
     "frontend": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["replicas", "resources"],
+      "required": [
+        "replicas",
+        "resources"
+      ],
       "properties": {
-        "replicas": { "type": "integer", "minimum": 1, "maximum": 10 },
-        "resources": { "$ref": "#/definitions/resources" }
+        "replicas": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "resources": {
+          "$ref": "#/definitions/resources"
+        }
       }
     },
     "route": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled"],
+      "required": [
+        "enabled"
+      ],
       "properties": {
-        "enabled": { "type": "boolean" },
-        "host": { "type": "string" }
+        "enabled": {
+          "type": "boolean"
+        },
+        "host": {
+          "type": "string"
+        }
       }
     },
     "ingress": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled"],
+      "required": [
+        "enabled"
+      ],
       "properties": {
-        "enabled": { "type": "boolean" },
-        "className": { "type": "string" },
-        "host": { "type": "string" },
-        "tlsSecret": { "type": "string" }
+        "enabled": {
+          "type": "boolean"
+        },
+        "className": {
+          "type": "string"
+        },
+        "host": {
+          "type": "string"
+        },
+        "tlsSecret": {
+          "type": "string"
+        }
       }
     },
     "networkPolicy": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled"],
+      "required": [
+        "enabled"
+      ],
       "properties": {
-        "enabled": { "type": "boolean" }
+        "enabled": {
+          "type": "boolean"
+        }
       }
     }
   },
@@ -152,33 +197,72 @@
     "image": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["repository"],
+      "required": [
+        "repository"
+      ],
       "properties": {
-        "repository": { "type": "string", "minLength": 1 },
-        "tag": { "type": "string", "not": { "const": "latest" }, "description": "jamais « latest »" }
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tag": {
+          "type": "string",
+          "not": {
+            "const": "latest"
+          },
+          "description": "jamais « latest »"
+        }
       }
     },
     "resources": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["requests", "limits"],
+      "required": [
+        "requests",
+        "limits"
+      ],
       "properties": {
         "requests": {
           "type": "object",
-          "required": ["cpu", "memory", "ephemeral-storage"],
+          "required": [
+            "cpu",
+            "memory",
+            "ephemeral-storage"
+          ],
           "properties": {
-            "cpu": { "type": ["string", "number"] },
-            "memory": { "type": "string" },
-            "ephemeral-storage": { "type": "string" }
+            "cpu": {
+              "type": [
+                "string",
+                "number"
+              ]
+            },
+            "memory": {
+              "type": "string"
+            },
+            "ephemeral-storage": {
+              "type": "string"
+            }
           }
         },
         "limits": {
           "type": "object",
-          "required": ["memory", "ephemeral-storage"],
+          "required": [
+            "memory",
+            "ephemeral-storage"
+          ],
           "properties": {
-            "cpu": { "type": ["string", "number"] },
-            "memory": { "type": "string" },
-            "ephemeral-storage": { "type": "string" }
+            "cpu": {
+              "type": [
+                "string",
+                "number"
+              ]
+            },
+            "memory": {
+              "type": "string"
+            },
+            "ephemeral-storage": {
+              "type": "string"
+            }
           }
         }
       }

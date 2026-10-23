@@ -17,25 +17,18 @@ backend/
 │   │   └── health.py           adresses de santé pour Kubernetes (/startupz, /readyz, /livez)
 │   ├── consistency.py        ⑤ règles d'ensemble (plusieurs objets à la fois)
 │   ├── versions.py            comparaison de numéros de version
-│   ├── security.py            vérification des jetons de Keycloak (identité, rôle)
-│   ├── access.py               qui a le droit de faire quoi (401, 403)
-│   ├── directory.py            les comptes, gérés dans Keycloak (écran Comptes)
 │   ├── configuration.py       export de toute la configuration en fichier Excel
 │   ├── import_configuration.py  import de ce fichier Excel
-│   ├── audit_log.py             journal des actions (qui a saisi quoi)
+│   ├── audit_log.py             journal des actions (quoi a été saisi, et quand)
 │   ├── storage.py         ⑥ les données : les opérations communes, et la version en mémoire
-│   ├── storage_postgres.py   les mêmes opérations, dans la base PostgreSQL
-│   └── transactions.py        une transaction par requête (base PostgreSQL)
+│   ├── storage_sqlite.py     les mêmes opérations, dans un fichier SQLite
+│   ├── sql/                   la structure de la base (tables), appliquée au démarrage
+│   └── transactions.py        une transaction par requête (base SQLite)
 ├── scripts/load_demo.py données de démonstration
-├── scripts/login.py     connexion d'une personne pour ses scripts (jeton hors ligne de Keycloak)
 └── tests/                  vérification automatique de tout ce qui précède
 ```
 
-À côté de `backend/`, on trouve :
-
-- `postgres/` : l'image de la base de données ;
-- `liquibase/` : la création des tables, lancée avant l'API (voir [postgresql.md](../postgresql.md)) ;
-- `keycloak/` : les comptes et la connexion (voir [keycloak.md](../keycloak.md)).
+À côté de `backend/`, il n'y a que `frontend/` (l'interface) : c'est la version légère, sans serveur de base de données ni connexion. La base est un fichier SQLite, ouvert par l'API elle-même (voir [sqlite.md](../sqlite.md)).
 
 ## Qui utilise qui
 
@@ -47,8 +40,8 @@ flowchart TD
     main --> routes["routes/*.py<br/>une ressource par fichier"]
     main --> stockage["storage.py<br/>les données"]
     main --> transactions["transactions.py<br/>une transaction par requête"]
-    transactions --> postgres["storage_postgres.py<br/>dans PostgreSQL"]
-    postgres --> stockage
+    transactions --> sqlite["storage_sqlite.py<br/>dans SQLite"]
+    sqlite --> stockage
     routes --> commun["routes/__init__.py<br/>404, 409, 422, Location"]
     routes --> schemas["schemas.py<br/>forme des données"]
     routes --> coherence["consistency.py<br/>règles d'ensemble"]
@@ -76,7 +69,7 @@ Ce qu'il faut remarquer :
 | changer une règle propre à un objet (unicité, suppression interdite…) | `routes/<object>.py` |
 | changer une règle qui croise plusieurs objets | `consistency.py` |
 | changer un code retour HTTP général | `http.py` |
-| changer la façon de lire ou d'écrire dans la base | `storage_postgres.py` |
+| changer la façon de lire ou d'écrire dans la base | `storage_sqlite.py` |
 
 **Toutes les routes sont bâties sur le même modèle.** Une fois `clusters.py` compris (page 5), on lit `modules.py` ou `slots.py` sans effort : seules les vérifications changent.
 

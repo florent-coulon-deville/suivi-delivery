@@ -4,7 +4,7 @@
 # Voir docs/deploiement.md, section 7.
 #
 # Usage, depuis n'importe quel dossier :
-#   ./deployment/podman-deploy.zsh [postgres|liquibase|keycloak|backend|frontend] [--reset]
+#   ./deployment/podman-deploy.zsh [backend|frontend] [--reset]
 #
 # Podman doit répondre : sur Mac (et Windows), sa machine doit tourner (podman machine start).
 

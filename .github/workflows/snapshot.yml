@@ -2,9 +2,9 @@
 # Comme un pipeline GitLab, il enchaîne des étapes ; chacune appelle une brique réutilisable
 # (fichiers « _*.yml ») :
 #
-#   1. vérifications, en parallèle : backend (mémoire + PostgreSQL), frontend, chart Helm,
+#   1. vérifications, en parallèle : backend (mémoire + SQLite), frontend, chart Helm,
 #      version unique, aucun secret dans l'historique (gitleaks) — toutes, à chaque push (le cache les rend rapides) ;
-#   2. images : seulement si toutes les vérifications sont vertes, les cinq images sont
+#   2. images : seulement si toutes les vérifications sont vertes, les deux images sont
 #      fabriquées (Intel/AMD et ARM) et publiées dans ghcr.io sous UNE étiquette par branche, écrasée
 #      à chaque push : on a toujours le dernier état de la branche, pour l'essayer sur un cluster.
 #
@@ -47,7 +47,7 @@ jobs:
     name: Backend
     if: "!startsWith(github.event.head_commit.message, 'chore: version ')"
     uses: ./.github/workflows/_tests-backend.yml
-    secrets: inherit  # DHI_USERNAME, DHI_TOKEN (images durcies de la base de test et de Liquibase)
+    secrets: inherit  # DHI_USERNAME, DHI_TOKEN (inutiles aux tests aujourd'hui : gardés pour la suite)
   frontend:
     name: Frontend
     if: "!startsWith(github.event.head_commit.message, 'chore: version ')"

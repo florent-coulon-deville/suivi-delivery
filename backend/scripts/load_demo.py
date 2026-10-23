@@ -12,12 +12,7 @@ Usage, depuis backend/, l'API étant démarrée (uv run python -m app --reload) 
 Adresse de l'API : le paramètre s'il est donné, sinon la variable API_URL (la même que
 celle du frontend), sinon http://127.0.0.1:8000.
 
-Le script se connecte par Keycloak, avec un compte ADMIN (il crée aussi la structure :
-environnements, clusters…) : identifiant et clé d'un programme (API_CLIENT_ID, API_CLIENT_SECRET),
-jeton hors ligne d'une personne (API_OFFLINE_TOKEN), ou, sans rien, connexion dans le navigateur
-(adresse et code affichés). Voir scripts/login.py.
-    uv run python scripts/load_demo.py                 # connexion dans le navigateur
-(OAuth 2.1 : un script n'envoie jamais le mot de passe d'une personne.)
+Pas de connexion : cette version de l'outil n'a pas de comptes.
 """
 
 import json
@@ -25,25 +20,16 @@ import os
 import sys
 import urllib.error
 import urllib.request
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # lancé comme fichier : trouver « scripts »
-from scripts.login import access_token  # noqa: E402
 
 URL = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("API_URL") or "http://127.0.0.1:8000"
 API = URL.rstrip("/") + "/api"
-HEADERS: dict[str, str] = {}  # rempli par connect() : le jeton d'accès
 
 
-def connect() -> None:
-    """Garde le jeton d'accès pour les appels suivants, après avoir vérifié qu'il marche (GET /api/me)."""
-    HEADERS["Authorization"] = f"Bearer {access_token()}"
-    request = urllib.request.Request(f"{API}/me", headers=HEADERS)
+def check() -> None:
+    """Vérifie que l'API répond, avant de commencer (GET /api/environments)."""
     try:
-        with urllib.request.urlopen(request) as response:
-            print(f"Connecté en « {json.load(response)['identifier']} »")
-    except urllib.error.HTTPError as error:
-        sys.exit(f"Jeton refusé : {json.loads(error.read()).get('detail', error.code)}")
+        with urllib.request.urlopen(f"{API}/environments"):
+            pass
     except urllib.error.URLError:
         sys.exit(f"API injoignable sur {API} : démarre-la d'abord (uv run python -m app --reload).")
 
@@ -53,7 +39,7 @@ def create(resource: str, **fields) -> dict:
     request = urllib.request.Request(
         f"{API}/{resource}",
         data=json.dumps(fields).encode(),
-        headers={"Content-Type": "application/json", **HEADERS},
+        headers={"Content-Type": "application/json"},
         method="POST",
     )
     try:
@@ -78,7 +64,7 @@ MODULE_APPLICATION = {
 
 
 def main() -> None:
-    connect()
+    check()
     applications = create_applications()
     namespaces = create_namespaces(applications, create_environments())
     modules = create_modules(applications)

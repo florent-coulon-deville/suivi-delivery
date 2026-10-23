@@ -7,8 +7,8 @@ identifiant : un module contient par exemple « application_id: 3 ».
 Les routes ne voient que les opérations de Table (lister, lire, trouver, ajouter,
 modifier, supprimer) et de Stockage. Deux façons de les réaliser :
   MemoryStorage   tout en mémoire, perdu à l'arrêt : tests, essais rapides sur un poste ;
-  PostgresStorage  dans la base PostgreSQL (app/storage_postgres.py) : le vrai stockage.
-La structure de la base est gérée par Liquibase (module liquibase/ à la racine, docs/postgresql.md).
+  SqliteStorage   dans un fichier SQLite (app/storage_sqlite.py) : le vrai stockage.
+La structure de la base est décrite dans app/sql/, appliquée par l'API au démarrage.
 
 Trois notions communes :
   transaction  un ensemble de lectures et d'écritures qui réussit en entier, ou pas du tout.
@@ -44,8 +44,6 @@ TABLE_NAMES = (
     "parameters",
     "slots",
     "installations",
-    # Préférences de chaque personne (thème), repérée par son identifiant Keycloak
-    "preferences",
     # Journal des actions (app/audit_log.py)
     "audit_log",
 )
@@ -149,8 +147,6 @@ class Storage(ABC):
         self.parameters = self._track("parameters")
         self.slots = self._track("slots")
         self.installations = self._track("installations")
-        # Préférences de chaque personne (les comptes eux-mêmes sont dans Keycloak : app/directory.py)
-        self.preferences = self._track("preferences")
 
     @abstractmethod
     def _table(self, name: str) -> Table:
@@ -165,7 +161,7 @@ class Storage(ABC):
     @contextmanager
     def transaction(self, write: bool = True) -> Generator[None]:
         """Tout ce qui est fait dans le bloc « with » est enregistré ensemble, ou annulé ensemble
-        (si une erreur sort du bloc). write=True : une seule écriture à la fois (voir storage_postgres.py)."""
+        (si une erreur sort du bloc). SQLite : une requête à la fois (voir storage_sqlite.py)."""
         yield
 
     @abstractmethod

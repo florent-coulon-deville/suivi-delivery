@@ -9,7 +9,7 @@ uv run pytest          # tous les tests (depuis backend/)
 uv run pytest -k loop   # seulement ceux dont le nom contient « boucle »
 ```
 
-**Deux façons de les lancer.** Sans réglage, les données sont **en mémoire** : rapide, rien à installer. Avec les variables `TESTS_DB_*`, **les mêmes tests** tournent sur une vraie base PostgreSQL, vidée avant chaque test (son nom doit finir par `_tests`). Les commandes sont dans [postgresql.md § 7](../postgresql.md#7-les-tests). La CI fait les deux.
+**Deux façons de les lancer.** Sans réglage, les données sont **en mémoire** : rapide, rien à installer. Avec la variable `TESTS_DB_FILE`, **les mêmes tests** tournent sur un vrai fichier SQLite, effacé avant chaque test (son nom doit finir par `_tests.sqlite`). Les commandes sont dans [sqlite.md](../sqlite.md#les-tests). La CI fait les deux.
 
 ## `conftest.py` : les outils partagés
 
@@ -32,7 +32,7 @@ Les autres fixtures préparent des données :
 
 Une fixture peut en utiliser une autre : `deployment` reçoit `dataset`, qui reçoit `client`.
 
-**`test_storage.py`** vérifie le stockage lui-même. Certains de ses tests n'ont de sens qu'avec une base : ils sont marqués `@with_postgres` et sautés en mémoire (`skipped` dans le résumé de pytest). Par exemple : après un « redémarrage » (une nouvelle application sur la même base, sans la vider), tout est retrouvé ; une erreur imprévue annule toute la requête ; la base refuse un doublon que l'API aurait laissé passer.
+**`test_storage.py`** vérifie le stockage lui-même. Certains de ses tests n'ont de sens qu'avec une base : ils sont marqués `@with_sqlite` et sautés en mémoire (`skipped` dans le résumé de pytest). Par exemple : après un « redémarrage » (une nouvelle application sur la même base, sans la vider), tout est retrouvé ; une erreur imprévue annule toute la requête ; la base refuse un doublon que l'API aurait laissé passer.
 
 La fonction **`create(client, "clusters", code="cb01", label="…")`** fait un POST qui doit réussir (201) et renvoie l'élément créé. Elle rend les tests plus courts.
 

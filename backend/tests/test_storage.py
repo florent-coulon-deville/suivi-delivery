@@ -1,6 +1,6 @@
-"""Tests du stockage (app/storage.py, app/storage_postgres.py, app/transactions.py).
+"""Tests du stockage (app/storage.py, app/storage_sqlite.py, app/transactions.py).
 
-Les tests marqués « with_postgres » ne tournent qu'avec une base de tests (TESTS_DB_HOST, voir
+Les tests marqués « with_sqlite » ne tournent qu'avec une base de tests (TESTS_DB_FILE, voir
 tests/conftest.py) : rien n'est perdu au redémarrage de l'API, une saisie qui échoue n'enregistre
 rien, la base refuse elle-même ce qui est incohérent. « Redémarrer » = créer une nouvelle
 application sur la même base, sans la vider.
@@ -15,13 +15,13 @@ from app.main import create_application
 from app.routes import clusters
 from app.settings import DatabaseSettings
 from app.storage import MemoryStorage, StorageUnavailable
-from app.storage_postgres import PostgresStorage
-from tests.conftest import BASE, application, connected, create, installation_body, new_storage, with_postgres
+from app.storage_sqlite import SqliteStorage
+from tests.conftest import BASE, application, create, installation_body, new_storage, started, with_sqlite
 
 
 def restart():
-    """Une nouvelle API sur les mêmes données, comme après un redémarrage (client connecté)."""
-    return connected(application(clear=False))
+    """Une nouvelle API sur les mêmes données, comme après un redémarrage."""
+    return started(application(clear=False))
 
 
 ALL = [
@@ -110,10 +110,10 @@ def test_namespaces_of_a_parameter(client, dataset):
     assert client.delete(f"/api/parameters/{parameter['id']}").status_code == 204  # ses affectations partent avec
 
 
-# --- Base PostgreSQL ------------------------------------------------------------
+# --- Base SQLite ---------------------------------------------------------------
 
 
-@with_postgres
+@with_sqlite
 def test_everything_found_after_restart(client, deployment):
     assert client.post("/api/installations", json=installation_body(deployment)).status_code == 201
     before = {resource: client.get(f"/api/{resource}").json() for resource in ALL}
@@ -123,7 +123,7 @@ def test_everything_found_after_restart(client, deployment):
             assert after.get(f"/api/{resource}").json() == before[resource], resource
 
 
-@with_postgres
+@with_sqlite
 def test_update_and_deletion_saved(client, dataset):
     client.patch(f"/api/clusters/{dataset['cluster']['id']}", json={"label": "Renommé"})
     assert client.delete(f"/api/environments/{dataset['int']['id']}").status_code == 204
@@ -133,7 +133,7 @@ def test_update_and_deletion_saved(client, dataset):
         assert after.get(f"/api/environments/{dataset['int']['id']}").status_code == 404
 
 
-@with_postgres
+@with_sqlite
 def test_deleted_element_identifier_never_reused(client):
     first = create(client, "clusters", code="cb01", label="Cluster 1")
     second = create(client, "clusters", code="cb02", label="Cluster 2")
@@ -144,7 +144,7 @@ def test_deleted_element_identifier_never_reused(client):
     assert new["id"] == second["id"] + 1 > first["id"]
 
 
-@with_postgres
+@with_sqlite
 def test_rejected_edit_is_not_saved(client, deployment):
     # Le namespace est sur ce cluster dans un environnement hors prod : passer le cluster en prod est refusé.
     cluster = deployment["cluster"]
@@ -154,19 +154,19 @@ def test_rejected_edit_is_not_saved(client, deployment):
         assert after.get(f"/api/clusters/{cluster['id']}").json()["is_prod"] is False
 
 
-@with_postgres
+@with_sqlite
 def test_unexpected_error_everything_cancelled(client, monkeypatch):
     # Le cluster est écrit, puis la route plante : la transaction de la requête est annulée.
     def outage(*args):
         raise RuntimeError("outage")
 
     monkeypatch.setattr(clusters, "add_location", outage)
-    without_exception = TestClient(client.app, raise_server_exceptions=False, headers=client.headers)
+    without_exception = TestClient(client.app, raise_server_exceptions=False)
     assert without_exception.post("/api/clusters", json={"code": "cb01", "label": "C"}).status_code == 500
     assert client.get("/api/clusters").json() == []
 
 
-@with_postgres
+@with_sqlite
 def test_database_rejects_what_the_api_would_let_through(client, monkeypatch):
     # Filet de sécurité : sans la vérification d'unicité de l'API, la base refuse le doublon (409).
     monkeypatch.setattr(clusters, "check_unique", lambda *args, **kwargs: None)
@@ -177,25 +177,33 @@ def test_database_rejects_what_the_api_would_let_through(client, monkeypatch):
     assert len(client.get("/api/clusters").json()) == 1
 
 
-@with_postgres
-def test_database_without_tables_rejected_at_startup():
-    # La base « postgres », créée d'office par PostgreSQL, n'a pas nos tables : Liquibase n'est pas passé.
+@with_sqlite
+def test_structure_created_once():
+    # Premier démarrage : la structure est créée ; au suivant, elle est déjà là (rien n'est rejoué).
     assert BASE is not None
-    without_tables = DatabaseSettings(BASE.host, BASE.password, BASE.port, "postgres", BASE.user)
-    storage = PostgresStorage(without_tables)
-    with pytest.raises(StorageUnavailable, match="Liquibase"):
+    for _ in range(2):
+        storage = SqliteStorage(BASE)
         storage.open()
-    with pytest.raises(StorageUnavailable, match="Liquibase"), TestClient(create_application(without_tables)):
-        pass
+        assert storage.connection.execute("pragma user_version").fetchone()[0] == 1
+        storage.close()
 
 
-@with_postgres
-def test_database_unreachable():
+@with_sqlite
+def test_database_more_recent_rejected():
+    # Une base préparée par une version plus récente de l'API : cette version refuse de démarrer.
     assert BASE is not None
-    unreachable = DatabaseSettings("127.0.0.1", "x", 1, BASE.name, BASE.user)  # rien n'écoute sur le port 1
-    storage = PostgresStorage(unreachable)
-    with pytest.raises(StorageUnavailable, match="injoignable"):
-        storage.open(wait_seconds=1)
+    with new_storage() as storage:
+        assert isinstance(storage, SqliteStorage)
+        storage.connection.execute("pragma user_version = 999")
+    with pytest.raises(StorageUnavailable, match="plus récente"):
+        SqliteStorage(BASE).open()
+
+
+def test_database_impossible_to_open(tmp_path):
+    (tmp_path / "file").write_text("")
+    storage = SqliteStorage(DatabaseSettings(tmp_path / "file" / "base.sqlite"))  # « file » n'est pas un dossier
+    with pytest.raises(StorageUnavailable, match="impossible à ouvrir"):
+        storage.open()
 
 
 # --- En mémoire -----------------------------------------------------------------

@@ -1,14 +1,13 @@
 # Réglages du chart « Suivi de la delivery » (non secrets). Réglés pour OpenShift, la cible.
 #
-# Les SECRETS (accès au registre, mots de passe de l'admin et de la base, clé du client de l'API
-# dans Keycloak) vont dans un autre fichier, values-secret.yaml, jamais publié : voir
-# values-secret.example.yaml.
+# Le seul SECRET possible (accès à un registre d'images privé) va dans un autre fichier,
+# values-secret.yaml, jamais publié : voir values-secret.example.yaml.
 #
 # Chaque réglage est vérifié par values.schema.json : une faute de frappe ou un mauvais type
 # arrête l'installation avec un message clair.
 
 # --- Images -------------------------------------------------------------------------------
-# Par défaut, les cinq images viennent du registre où la CI les publie, à la version du
+# Par défaut, les deux images viennent du registre où la CI les publie, à la version du
 # chart (appVersion) : installer le chart 0.4.3 installe l'application 0.4.3.
 images:
   # Registre placé devant le nom de chaque image (<registre>/<depot>:<étiquette>).
@@ -20,21 +19,6 @@ images:
     tag: ""                   # vide : la version du chart
   frontend:
     repository: suivi-delivery-frontend
-    tag: ""
-  # Liquibase : applique la structure de la base avant le démarrage de l'API (docs/postgresql.md).
-  liquibase:
-    repository: suivi-delivery-liquibase
-    tag: ""
-  # Keycloak : les comptes et la connexion (docs/keycloak.md). L'image durcie (dhi.io),
-  # avec le thème de l'outil et la configuration du domaine (module keycloak/).
-  keycloak:
-    repository: suivi-delivery-keycloak
-    tag: ""
-  # PostgreSQL : la base intégrée (database.internal), et l'attente de la base. L'image durcie,
-  # sous le nom du projet, qui prépare au premier démarrage le schéma de nos tables, et
-  # l'utilisateur et le schéma de Keycloak (module postgres/ : sa version y est figée).
-  postgresql:
-    repository: suivi-delivery-postgres
     tag: ""
   # IfNotPresent : réutiliser une image déjà présente sur le nœud (kind : images chargées à la main).
   pullPolicy: IfNotPresent
@@ -49,11 +33,6 @@ registry:
 application:
   # Nom de l'instance, affiché en bandeau dans l'interface (vide : pas de bandeau).
   instanceName: ""
-  # Adresse publique de l'interface, telle que la tape le navigateur (APP_FRONTEND_URL) : les
-  # pages de connexion de Keycloak y sont servies, sous /auth. Vide : https://<route.host>, sinon l'hôte de l'Ingress, sinon
-  # http://localhost:8080 (kind et « kubectl port-forward »). OBLIGATOIRE sur OpenShift quand
-  # route.host est vide (hôte choisi par OpenShift), ex. https://suivi-delivery-suivi-delivery.apps-crc.testing
-  frontendUrl: ""
   # Couleur du bandeau (ex. "#2f9e44") ; vide : rouge si le nom est « prod », orange sinon.
   instanceColor: ""
   # Détail des journaux de l'API : critical, error, warning, info, debug, trace.
@@ -61,32 +40,17 @@ application:
   # Documentation Swagger de l'API (/api/docs). L'API n'étant pas exposée, elle ne se voit
   # qu'avec un « kubectl port-forward ».
   swagger: false
-  # Secret des mots de passe et clés de l'application, s'il est fourni autrement (Vault, Sealed
-  # Secrets…). Il doit contenir APP_ADMIN_PASSWORD, APP_DB_PASSWORD, APP_KEYCLOAK_CLIENT_SECRET,
-  # KC_DB_PASSWORD et KC_BOOTSTRAP_ADMIN_PASSWORD. Vide : le chart le crée.
-  existingSecret: ""
 
-# --- Base de données PostgreSQL ----------------------------------------------------------
-database:
-  # true : le chart installe aussi PostgreSQL (un exemplaire, ses données sur un disque conservé),
-  #        pratique pour kind et les essais ;
-  # false : base fournie par ailleurs (équipe des bases de données, opérateur…) : indiquer son
-  #        adresse (hote) ; son mot de passe va dans values-secret.yaml (database.password).
-  internal: true
-  host: ""                 # base fournie seulement, ex. pg.example.com
-  port: 5432
-  name: suivi_delivery
-  user: suivi_delivery
-  # Schéma de nos tables, dans cette base (« public » reste vide). Base intégrée : créé au premier
-  # démarrage. Base fournie : à faire créer, au nom de « utilisateur » (docs/postgresql.md).
-  schema: suivi_delivery
-  # Utilisateur et schéma de Keycloak, dans la même base : il n'a accès qu'à son schéma. Base
-  # intégrée : créés au premier démarrage. Base fournie : à faire créer (docs/keycloak.md).
-  keycloakUser: keycloak
-  keycloakSchema: keycloak
-  # Base intégrée seulement : son disque, et ses ressources.
+# --- Backend (API) ------------------------------------------------------------------------
+# Pas de connexion ni de rôles dans cette version : tout le monde peut tout faire. L'interface est
+# donc à réserver à un réseau de confiance (docs/architecture.md).
+backend:
+  # 1 : l'API tourne ; 0 : arrêtée (par exemple pour une intervention sur ses données). Jamais plus
+  # d'un exemplaire : la base SQLite est un fichier, sur un disque attaché à un seul pod.
+  replicas: 1
+  # Le disque des données (fichier SQLite), conservé même après « helm uninstall ».
   storage:
-    size: 2Gi
+    size: 1Gi
     className: ""             # classe de stockage du cluster ; vide : celle par défaut
   resources:
     requests:
@@ -95,44 +59,7 @@ database:
       ephemeral-storage: 100Mi
     limits:
       cpu: "1"
-      memory: 1Gi
-      ephemeral-storage: 1Gi
-
-# --- Backend (API) ------------------------------------------------------------------------
-backend:
-  # Nombre d'exemplaires de l'API. Ils partagent la base ; une seule saisie passe à la fois.
-  # 0 : API arrêtée, par exemple pendant une intervention sur la base.
-  replicas: 1
-  resources:
-    requests:
-      cpu: 100m
-      memory: 256Mi
-      ephemeral-storage: 100Mi
-    limits:
-      cpu: "1"
       memory: 512Mi
-      ephemeral-storage: 1Gi
-
-# --- Keycloak (comptes et connexion) -------------------------------------------------------
-# Ses pages de connexion passent par l'interface (<adresse de l'interface>/auth) : il n'a ni Route
-# ni Ingress. Sa console d'administration n'est jamais exposée (kubectl port-forward seulement,
-# docs/keycloak.md). Le domaine de l'outil est importé au premier démarrage.
-keycloak:
-  # Adresse de sa console d'administration, vue du navigateur (KC_HOSTNAME_ADMIN) : par défaut,
-  # celle d'un « kubectl port-forward service/<installation>-keycloak 8081:8080 ». Ne pas ouvrir
-  # de Route ou d'Ingress vers elle ; si un autre accès est décidé, mettre son adresse ici.
-  consoleUrl: http://localhost:8081/auth
-  # 1 : un seul exemplaire. Plusieurs : ils se partagent les sessions par la base (à essayer
-  # d'abord hors production).
-  replicas: 1
-  resources:
-    requests:
-      cpu: 250m
-      memory: 768Mi
-      ephemeral-storage: 100Mi
-    limits:
-      cpu: "2"
-      memory: 1536Mi
       ephemeral-storage: 1Gi
 
 # --- Frontend (interface) -----------------------------------------------------------------
@@ -164,7 +91,6 @@ ingress:
   tlsSecret: ""       # Secret du certificat HTTPS ; vide : pas de HTTPS sur l'Ingress
 
 # --- Réseau ---------------------------------------------------------------------------------
-# Seuls les pods de l'interface (et le test Helm) peuvent joindre l'API ; seuls l'interface et
-# l'API peuvent joindre Keycloak ; seuls l'API (Liquibase) et Keycloak peuvent joindre la base intégrée.
+# Seuls les pods de l'interface (et le test Helm) peuvent joindre l'API.
 networkPolicy:
   enabled: true

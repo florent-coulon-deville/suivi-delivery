@@ -7,9 +7,7 @@ from io import BytesIO
 from openpyxl import load_workbook
 
 from app.configuration import FORMAT, SHEETS, TYPE_XLSX
-from tests.conftest import create, installation_body, token
-
-PASSWORD = "a-strong-password"
+from tests.conftest import create, installation_body
 
 
 def export_file(client, headers: dict | None = None) -> dict[str, list[tuple]]:
@@ -101,19 +99,6 @@ def test_environments_in_promotion_order(client):
     create(client, "environments", code="rec", label="Recette", promotion_order=2)
     codes = [row[0] for row in export_file(client)["Environnements"][1:]]
     assert codes == ["int", "rec", "prod", "bac"]  # sans ordre : à la fin
-
-
-def test_open_to_viewers(client):
-    body = {"identifier": "lea", "name": "Léa", "kind": "PERSON", "role": "VIEWER"}
-    response = client.post("/api/accounts", json={**body, "password": PASSWORD})
-    assert response.status_code == 201, response.json()
-    create(client, "environments", code="int", label="Intégration")
-    sheets = export_file(client, {"Authorization": f"Bearer {token(client.app, 'lea')}"})
-    assert len(sheets["Environnements"]) == 2
-
-
-def test_without_token_rejected(anonymous):
-    assert anonymous.get("/api/configuration").status_code == 401
 
 
 def test_methods(client):

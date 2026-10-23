@@ -17,16 +17,5 @@
 {{- end }}
 {{- end }}
 
-3. Se connecter avec le compte « admin » (Keycloak démarre en une ou deux minutes la première fois).
-{{- if .Values.application.adminPassword }}
-     Mot de passe initial : celui de values-secret.yaml.
-{{- else }}
-     Mot de passe initial :
-     kubectl get secret {{ include "sd.applicationSecret" . }} -n {{ .Release.Namespace }} -o jsonpath='{.data.APP_ADMIN_PASSWORD}' | base64 -d; echo
-{{- end }}
-     Le changer ensuite dans « Mon compte ».
-
-4. Console d'administration de Keycloak (rarement utile, jamais exposée) :
-     kubectl port-forward -n {{ .Release.Namespace }} service/{{ include "sd.name" . }}-keycloak 8081:8080
-     puis {{ trimSuffix "/" .Values.keycloak.consoleUrl }}/admin (utilisateur admin-keycloak ; mot de passe :
-     kubectl get secret {{ include "sd.applicationSecret" . }} -n {{ .Release.Namespace }} -o jsonpath='{.data.KC_BOOTSTRAP_ADMIN_PASSWORD}' | base64 -d; echo)
+3. Pas de connexion dans cette version : tout le monde peut tout faire. Réserver l'interface à un
+   réseau de confiance. Données : disque « {{ include "sd.name" . }}-data » (conservé par « helm uninstall »).

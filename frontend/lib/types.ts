@@ -72,54 +72,14 @@ export const RESOURCES: Resource[] = [
   "installations",
 ];
 
-/** Structure (paramétrage général) : seul l'administrateur la modifie. Le reste (versions,
- *  paramètres, installations) est saisi par les développeurs (rôle EDITOR). Comme dans l'API
- *  (backend/app/main.py). */
-export const RESOURCES_STRUCTURE: ReadonlySet<Resource> = new Set<Resource>([
-  "environments",
-  "clusters",
-  "network-zones",
-  "applications",
-  "namespaces",
-  "modules",
-  "dependencies",
-  "compatibilities",
-  "slots",
-]);
-
 /** Valeurs des listes fermées : { ModuleType: ["CAPABILITY", "BUSINESS_PROJECT"], VersionType: [...], ... }. */
 export type Enumerations = Record<string, string[]>;
 
-/** Un rôle de l'outil (dans Keycloak) ; null : le compte ne peut rien faire dans l'outil. */
-export type AccountRole = "VIEWER" | "EDITOR" | "ADMIN";
-
-/** Un compte (voir /api/accounts ; gardé par Keycloak) : jamais de mot de passe ni de clé. */
-export type Account = {
-  id: string; // identifiant Keycloak
-  identifier: string;
-  name: string;
-  kind: "PERSON" | "PROGRAM";
-  role: AccountRole | null;
-  active: boolean;
-};
-
-/** La personne (ou le programme) connectée (voir /api/me), et ses préférences. */
-export type Me = {
-  identifier: string;
-  name: string;
-  kind: "PERSON" | "PROGRAM";
-  role: AccountRole | null;
-  theme: "AUTO" | "LIGHT" | "DARK"; // thème de couleurs de l'interface (Mon compte → Apparence)
-};
-
-/** Une ligne du journal des actions (voir /api/audit-log) : qui a créé, modifié ou supprimé quoi, et quand. */
+/** Une ligne du journal des actions (voir /api/audit-log) : quoi a été créé, modifié ou supprimé, et quand. */
 export type AuditEntry = {
   id: number;
   date: string;
-  author_id: string | null; // identifiant Keycloak de l'auteur
-  author: string; // identifiant de connexion (ou du programme) au moment de la saisie
-  author_kind: "PERSON" | "PROGRAM";
-  object: string; // nom de la table : « installations », « comptes »…
+  object: string; // nom de la table : « installations »…
   object_id: string;
   action: "CREATE" | "UPDATE" | "DELETE";
   before: Record<string, unknown> | null;

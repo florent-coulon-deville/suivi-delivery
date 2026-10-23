@@ -1,5 +1,5 @@
 # Brique réutilisable (appelée par snapshot.yml et release.yml, jamais lancée seule) :
-# fabrique les cinq images (backend, frontend, liquibase, keycloak, postgres) et les publie
+# fabrique les deux images (backend, frontend) et les publie
 # dans ghcr.io, sous l'étiquette demandée. La même brique sert aux snapshots et aux versions :
 # les images sont toujours fabriquées de la même façon.
 #
@@ -84,7 +84,7 @@ jobs:
     strategy:
       fail-fast: false  # une image cassée n'empêche pas de fabriquer les autres
       matrix:
-        part: [backend, frontend, liquibase, keycloak, postgres]
+        part: [backend, frontend]
         arch: ${{ fromJSON(needs.prepare.outputs.archs) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -193,7 +193,7 @@ jobs:
       packages: write
     strategy:
       matrix:
-        part: [backend, frontend, liquibase, keycloak, postgres]
+        part: [backend, frontend]
     steps:
       - name: Connexion à ghcr.io
         env:
@@ -228,7 +228,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        part: [backend, frontend, liquibase, keycloak, postgres]
+        part: [backend, frontend]
     steps:
       # Le code de l'image : les alertes y pointent vers son Dockerfile.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -281,7 +281,7 @@ jobs:
           PYTHON
       # Action publiée par GitHub (figée par son empreinte de commit) : chaque faille devient une
       # alerte, suivie d'une exécution à l'autre, fermée d'elle-même une fois corrigée. Une
-      # catégorie par image : les rapports des cinq images ne s'écrasent pas.
+      # catégorie par image : les rapports des deux images ne s'écrasent pas.
       - name: Envoyer à l'onglet Security
         uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d  # v4.38.3
         with:

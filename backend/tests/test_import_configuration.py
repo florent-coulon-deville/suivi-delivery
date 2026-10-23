@@ -6,10 +6,7 @@ from io import BytesIO
 from openpyxl import Workbook, load_workbook
 
 from app.configuration import FORMAT, SHEETS, TYPE_XLSX
-from tests.conftest import application, connected, create, installation_body, token
-
-PASSWORD = "a-strong-password"
-
+from tests.conftest import application, create, installation_body, started
 
 # --- Outils -------------------------------------------------------------------------
 
@@ -112,7 +109,7 @@ def test_reimporting_own_export_changes_nothing(client, deployment):
 def test_copy_to_an_empty_instance(client, deployment):
     complete(client, deployment)
     export = export_file(client)
-    with connected(application()) as other:  # une autre instance, vide
+    with started(application()) as other:  # une autre instance, vide
         result = report(other, export)
         assert result["applied"] is True
         assert summary(result)["Namespaces"] == (1, 0, 0)
@@ -144,7 +141,7 @@ def test_dry_run_then_import(client, dataset):
 def test_import_logged_in_audit_log(client, dataset):
     report(client, file(clusters=[("cb03", "Cluster 3", "non")]))
     [row] = client.get("/api/audit-log", params={"object": "clusters", "action": "CREATE", "limit": 1}).json()
-    assert (row["author"], row["after"]["code"]) == ("admin", "cb03")
+    assert row["after"]["code"] == "cb03"
 
 
 def test_partial_file_referring_to_existing_objects(client, deployment):
@@ -299,13 +296,6 @@ def test_other_format(client):
     response = import_workbook(client, file(format_=FORMAT + 1))
     assert response.status_code == 422
     assert response.json()["detail"] == f"Fichier au format {FORMAT + 1} : cet outil lit le format {FORMAT}"
-
-
-def test_reserved_to_admin(client):
-    body = {"identifier": "paul", "name": "Paul", "kind": "PERSON", "role": "EDITOR"}
-    assert client.post("/api/accounts", json={**body, "password": PASSWORD}).status_code == 201
-    headers = {"Authorization": f"Bearer {token(client.app, 'paul')}"}
-    assert import_workbook(client, file(), headers=headers).status_code == 403
 
 
 def test_date_without_timezone_read_as_utc(client, deployment):

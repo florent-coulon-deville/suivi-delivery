@@ -1,10 +1,10 @@
 # Modèle de données
 
-Les données sont dans une base **PostgreSQL**, une table par objet, dans le schéma `suivi_delivery`.
+Les données sont dans une base **SQLite** (un seul fichier), une table par objet.
 
-- Les tables et leurs contrôles sont écrits dans [liquibase/changelog/](../liquibase/changelog/main.yaml) et expliqués dans [postgresql.md](postgresql.md).
+- Les tables et leurs contrôles sont écrits dans [backend/app/sql/](../backend/app/sql/001-tables.sql) et expliqués dans [sqlite.md](sqlite.md).
 - Le lien « plusieurs pour plusieurs » entre paramètres et namespaces a sa propre table, `parameter_namespaces`.
-- Les comptes ne sont pas ici : c'est Keycloak qui les garde ([keycloak.md](keycloak.md)). Seule la table `preferences` (le thème de couleurs de chaque personne) s'y rattache, par l'identifiant Keycloak.
+- Pas de comptes dans cette version (pas de connexion) : le journal des actions (`audit_log`) n'a pas d'auteur.
 
 **Règle d'or : on ne peut pas saisir quelque chose d'incohérent.** Toute saisie qui rendrait les données fausses est refusée, avec un message qui dit pourquoi.
 

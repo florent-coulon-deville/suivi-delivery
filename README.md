@@ -18,6 +18,8 @@ Elle sert à deux choses :
 
 Nom technique du projet : `suivi-delivery` (dépôt GitHub `florent-coulon-deville/suivi-delivery`).
 
+**Version légère** : deux programmes seulement (l'API et l'interface), les données dans un seul fichier **SQLite**, et **pas de connexion** : tout le monde peut tout lire et tout saisir. À réserver à un réseau de confiance.
+
 ## Les mots à connaître
 
 | Mot | Sens |
@@ -26,9 +28,7 @@ Nom technique du projet : `suivi-delivery` (dépôt GitHub `florent-coulon-devil
 | **API** ou **backend** | le programme qui garde les données et vérifie les règles (Python) |
 | **interface** ou **frontend** | les pages web que l'on utilise dans le navigateur (Next.js) |
 | **image** / **conteneur** | une image Docker est un programme prêt à lancer, avec tout ce dont il a besoin ; un conteneur est une image en train de tourner |
-| **Keycloak** | le logiciel qui gère les comptes, les mots de passe et la connexion |
-| **jeton** | une preuve de connexion, donnée par Keycloak, que l'on joint à chaque appel de l'API |
-| **Liquibase** | l'outil qui crée et fait évoluer les tables de la base de données |
+| **SQLite** | une base de données rangée dans un seul fichier, lue et écrite directement par l'API (pas de serveur de base à installer) |
 | **cluster** | un ensemble de serveurs qui fait tourner des applications (OpenShift, Kubernetes) |
 | **namespace** | un espace réservé à une application dans un cluster |
 | **Helm** / **chart** | Helm installe une application sur un cluster ; le chart est sa recette d'installation |
@@ -71,19 +71,10 @@ suivi-delivery/
 │   ├── k8s-deploy.zsh      installe l'application sur un cluster (OpenShift, kind…) avec Helm
 │   ├── k8s-deploy.ps1      la même chose pour Windows (PowerShell 7, pwsh)
 │   └── docker.env          réglages des conteneurs sur le poste (créé par docker-deploy, hors de Git)
-├── postgres/               la base de données PostgreSQL (image et préparation au premier démarrage)
-├── keycloak/               les comptes et la connexion (Keycloak) — voir docs/keycloak.md
-│   ├── Dockerfile          image Keycloak + notre thème + la configuration du domaine
-│   ├── import/             la configuration de Keycloak pour l'outil (rôles, compte admin…)
-│   └── themes/             le thème : pages de connexion à l'allure de l'outil
-├── liquibase/              les tables de la base, créées par Liquibase — voir docs/postgresql.md
-│   ├── Dockerfile          image Liquibase avec nos fichiers SQL
-│   └── changelog/          les fichiers SQL, dans l'ordre (liste : main.yaml)
 ├── backend/                API (Python, FastAPI)
 │   ├── .python-version     version de Python utilisée (3.14)
 │   ├── pyproject.toml      dépendances et réglages des outils (pytest, ruff, ty)
 │   ├── uv.lock             versions exactes des dépendances (fabriqué par uv, ne pas modifier à la main)
-│   ├── dist/               dépendances téléchargées avant de fabriquer l'image (hors de Git)
 │   ├── .env.example        modèle des réglages pour le développement sans Docker
 │   ├── Dockerfile          fabrication de l'image Docker du backend
 │   ├── docker.example.env  modèle des réglages du conteneur (recopié dans deployment/docker.env)
@@ -93,12 +84,12 @@ suivi-delivery/
 │   │   ├── main.py         crée l'application et branche les routes
 │   │   ├── schemas.py      forme des données échangées (JSON) et règles de saisie
 │   │   ├── storage.py      opérations sur les données (lister, ajouter…), version en mémoire
-│   │   ├── storage_postgres.py  les mêmes opérations dans la base PostgreSQL
-│   │   ├── transactions.py une transaction par requête, une écriture à la fois
+│   │   ├── storage_sqlite.py    les mêmes opérations dans la base SQLite
+│   │   ├── sql/            la structure de la base (tables), appliquée par l'API au démarrage
+│   │   ├── transactions.py une transaction par requête, une requête à la fois
 │   │   ├── consistency.py  règles d'ensemble : on ne peut rien saisir d'incohérent
 │   │   ├── http.py         règles HTTP communes (méthodes, codes retour)
-│   │   ├── security.py     vérification des jetons de connexion
-│   │   ├── audit_log.py    journal des actions (qui a saisi quoi)
+│   │   ├── audit_log.py    journal des actions (quoi a été saisi, et quand)
 │   │   └── routes/         une ressource par fichier (clusters, modules, installations…)
 │   ├── scripts/
 │   │   ├── load_demo.py données de démonstration, à charger dans une API démarrée
@@ -107,7 +98,7 @@ suivi-delivery/
 │   ├── .env.example        modèle des réglages pour le développement sans Docker
 │   ├── Dockerfile          fabrication de l'image Docker du frontend (serveur Next.js)
 │   ├── docker.example.env  modèle des réglages du conteneur (recopié dans deployment/docker.env)
-│   ├── app/                les pages (« Ce qui tourne », « Saisie ») et leurs actions côté serveur
+│   ├── app/                les pages (« Ce qui tourne », « Saisie », « Import », « Journal ») et leurs actions côté serveur
 │   ├── components/         les blocs d'affichage
 │   └── lib/                accès à l'API (côté serveur), calcul de l'état, types
 ├── cicd/                   outils de la CI (voir docs/ci.md)
@@ -115,15 +106,13 @@ suivi-delivery/
 ├── release-please-config.json  versions automatiques : fichiers où release-please change le numéro (docs/ci.md § 5)
 ├── CHANGELOG.md            journal des versions, tenu par release-please
 ├── helm/suivi-delivery/    le chart Helm : la recette d'installation sur un cluster
-├── bruno/                  appels d'API prêts à l'emploi pour l'outil Bruno
 ├── .vscode/                réglages et extensions VS Code du projet
 └── docs/
     ├── comprendre-le-code/ guide pas à pas du code du backend, fichier par fichier
     ├── architecture.md     découpage du programme, trajet d'une requête, choix
     ├── frontend.md         interface web : outils, lancement, écrans, code
     ├── deploiement.md      réglages, images Docker, lancement sur le poste et sur un cluster
-    ├── postgresql.md       base PostgreSQL et Liquibase : tables, évolutions, commandes
-    ├── keycloak.md         Keycloak : comptes, connexion, accès par script
+    ├── sqlite.md           la base SQLite : fichier, tables, évolutions, sauvegarde
     ├── modele-de-donnees.md  tables, liens et règles métier
     ├── api.md              URLs, champs, codes retour, exemples
     ├── glossaire.md        mot métier → nom dans le code (le code est en anglais)
@@ -136,10 +125,10 @@ suivi-delivery/
 - [x] Saisie de la structure : environnements, clusters, zones réseau, applications, namespaces, modules et leurs dépendances
 - [x] Saisie des livraisons : versions de module, paramètres, emplacements, installations
 - [x] Refus des versions incompatibles entre modules qui dépendent l'un de l'autre
-- [x] Données dans PostgreSQL, tables créées par Liquibase
+- [x] Données dans un fichier SQLite, tables créées par l'API elle-même
 - [x] Interface web : écran « Ce qui tourne », espace de saisie, journal des actions
 - [x] Export et import de toute la configuration dans un fichier Excel
-- [x] Connexion par **Keycloak** : comptes, rôles consultation / saisie / administration
+- [ ] Connexion et comptes (version légère : pas de connexion pour l'instant)
 - [x] Réglages par variables d'environnement
 - [x] Images Docker et lancement sur le poste
 - [ ] Déploiement sur OpenShift
@@ -161,43 +150,31 @@ uv run pytest                          # lancer les tests
 uv run python -m app --reload          # démarrer l'API, données en mémoire (sans --reload : lancement normal)
 ```
 
-Pour garder les données, démarrer l'API sur la base PostgreSQL du poste (Docker, voir [docs/postgresql.md](docs/postgresql.md)) :
+Pour garder les données, donner à l'API un fichier SQLite (créé s'il n'existe pas, avec ses tables) :
 
 ```bash
-./deployment/docker-deploy.zsh postgres && ./deployment/docker-deploy.zsh liquibase                    # depuis la racine
-APP_DB_HOST=localhost APP_DB_PASSWORD=$(sed -n 's/^POSTGRES_PASSWORD=//p' ../deployment/docker.env) uv run python -m app --reload   # depuis backend/
+APP_DB_FILE=donnees/suivi-delivery.sqlite uv run python -m app --reload   # depuis backend/
 ```
 
-Swagger (documentation interactive, pour tester chaque appel) : <http://localhost:8000/api/docs>, après s'être connecté avec le bouton **Authorize**.
+Swagger (documentation interactive, pour tester chaque appel) : <http://localhost:8000/api/docs>.
 
-### La connexion
+### Pas de connexion
 
-Il faut être connecté pour appeler l'API (comptes et rôles : [docs/api.md](docs/api.md#0-connexion-et-droits)).
+Cette version n'a **ni comptes, ni mots de passe, ni rôles** : toute personne qui ouvre l'interface (ou appelle l'API) peut tout lire et tout saisir. La règle d'or reste : **rien d'incohérent ne peut être saisi**. Le journal note chaque saisie (quoi, quand), sans auteur.
 
-Les comptes et les mots de passe sont gérés par **Keycloak** ([docs/keycloak.md](docs/keycloak.md)). Sa page de connexion ressemble à l'outil et a la même adresse : l'utilisateur ne voit pas Keycloak.
-
-- **Au premier démarrage**, Keycloak crée le compte **`admin`**. Son mot de passe est `APP_ADMIN_PASSWORD`, tiré au hasard dans `deployment/docker.env` et affiché par `docker-deploy.zsh`.
-- Avec ce compte, l'écran **Comptes** crée les autres comptes :
-  - onglet **Utilisateurs** : des personnes, avec un mot de passe provisoire à changer à la première connexion ;
-  - onglet **Programmes** : des scripts ou outils, avec une clé.
-- Chacun change son mot de passe dans **Mon compte** (clic sur son nom, en haut à droite).
-- **Pour appeler l'API** sans l'interface : Bruno, Swagger, un script ou un compte programme. Voir [docs/api.md](docs/api.md#obtenir-un-jeton).
+L'API n'est jamais exposée hors du cluster (seule l'interface l'appelle) ; l'interface, elle, est à réserver à un réseau de confiance.
 
 ### Les données
 
-Les données sont enregistrées dans une base **PostgreSQL** (variables `APP_DB_*`).
+Les données sont enregistrées dans **un seul fichier SQLite** (variable `APP_DB_FILE`). L'API crée le fichier et ses tables au premier démarrage, et les met à jour quand une nouvelle version en a besoin. Tout est expliqué dans [docs/sqlite.md](docs/sqlite.md).
 
-- Nos tables sont dans le schéma `suivi_delivery`. Keycloak range les siennes dans le schéma `keycloak` de la même base. (Un schéma est un dossier de tables à l'intérieur d'une base.)
-- Les tables sont créées et mises à jour par **Liquibase**, lancé avant l'API.
-
-Tout est expliqué dans [docs/postgresql.md](docs/postgresql.md).
-
-- **Sans base** (`APP_DB_HOST` absente), l'API garde ses données en mémoire : elles sont perdues à l'arrêt.
-- **Sur le poste**, `./deployment/docker-deploy.zsh` lance la base dans Docker. Les données sont gardées dans le volume Docker `suivi-delivery-postgres-local`.
+- **Sans fichier** (`APP_DB_FILE` absente), l'API garde ses données en mémoire : elles sont perdues à l'arrêt.
+- **Sur le poste**, avec `./deployment/docker-deploy.zsh`, le fichier est gardé dans le volume Docker `suivi-delivery-data-local`.
 - **Repartir de zéro** : `./deployment/docker-deploy.zsh --reset`.
-- **Sauvegarder** : `docker exec suivi-delivery-postgres-local pg_dump -U suivi_delivery -d suivi_delivery > sauvegarde.sql`.
+- **Sauvegarder** : l'export Excel (bouton « Exporter »), ou une copie du fichier (voir [docs/sqlite.md](docs/sqlite.md#sauvegarder)).
+- **Un seul exemplaire de l'API** à la fois sur un même fichier.
 
-Les tests travaillent en mémoire, ou sur une base de tests à part : ils ne touchent jamais aux données.
+Les tests travaillent en mémoire, ou sur un fichier de tests à part : ils ne touchent jamais aux données.
 
 ### L'interface web (frontend)
 
@@ -206,8 +183,7 @@ Pré-requis : [Node.js](https://nodejs.org) 26 et npm (sur Mac avec MacPorts : `
 L'API doit tourner en même temps : c'est le serveur de l'interface qui l'appelle.
 
 ```bash
-# depuis backend/ : charger des données de démonstration (facultatif ;
-# le script affiche une adresse à ouvrir dans le navigateur pour se connecter)
+# depuis backend/ : charger des données de démonstration (facultatif)
 uv run python scripts/load_demo.py
 
 # depuis frontend/
@@ -220,14 +196,13 @@ L'annonce « New major version of npm available » peut être ignorée. Détails
 
 ### Les réglages
 
-Ce qui change d'une installation à l'autre (adresses, ports, mots de passe) se règle **au lancement**, par des variables d'environnement. On ne touche pas au code. Sans variable, les valeurs par défaut conviennent au développement.
+Ce qui change d'une installation à l'autre (adresses, ports, fichier des données) se règle **au lancement**, par des variables d'environnement. On ne touche pas au code. Sans variable, les valeurs par défaut conviennent au développement.
 
 | Application | Variables |
 | --- | --- |
-| Backend | `APP_HOST`, `APP_PORT`, `APP_LOG_LEVEL`, `APP_DOCS` ; base : `APP_DB_HOST`, `APP_DB_PORT`, `APP_DB_NAME`, `APP_DB_SCHEMA`, `APP_DB_USER`, `APP_DB_PASSWORD` ; connexion : `APP_KEYCLOAK_URL`, `APP_KEYCLOAK_REALM`, `APP_KEYCLOAK_CLIENT_SECRET`, `APP_FRONTEND_URL`, `APP_API_URL` |
-| Frontend | `API_URL` (adresse et port du backend), `PORT`, `INSTANCE_NAME`, `INSTANCE_COLOR`, `APP_FRONTEND_URL`, `KEYCLOAK_URL`, `KEYCLOAK_REALM` (connexion) |
-| Keycloak | `KC_DB_*`, `KC_HOSTNAME`, `KC_BOOTSTRAP_ADMIN_*`, `APP_ADMIN_PASSWORD`, `APP_KEYCLOAK_CLIENT_SECRET` ([docs/keycloak.md](docs/keycloak.md#7-réglages)) |
-| Script de démo | `API_URL`, `API_CLIENT_ID` / `API_CLIENT_SECRET` ou `API_OFFLINE_TOKEN`, `KEYCLOAK_URL` |
+| Backend | `APP_HOST`, `APP_PORT`, `APP_LOG_LEVEL`, `APP_DOCS`, `APP_DB_FILE` (fichier SQLite) |
+| Frontend | `API_URL` (adresse et port du backend), `PORT`, `INSTANCE_NAME`, `INSTANCE_COLOR` |
+| Script de démo | `API_URL` |
 
 Où les mettre :
 

@@ -1,7 +1,5 @@
 "use client";
 // Espace « Saisie » : gérer tous les objets.
-// Sans le rôle ADMIN (structure = false), seulement les livraisons : versions de
-// module, paramètres, installations. Les autres objets restent lus (listes des formulaires).
 //
 //   à gauche   les objets, regroupés (Listes, Socle, Déploiement), avec leur nombre
 //   au centre  la liste des éléments de l'objet choisi, avec recherche
@@ -17,7 +15,7 @@ import { remove } from "@/app/edit/actions";
 import Menu from "@/components/Menu";
 import Drawer from "@/components/Drawer";
 import { toUppercase, asText } from "@/lib/format";
-import { type Data, type Enumerations, RESOURCES_STRUCTURE, type Resource } from "@/lib/types";
+import { type Data, type Enumerations, type Resource } from "@/lib/types";
 
 import Form from "./Form";
 import InstallationForm from "./InstallationForm";
@@ -66,23 +64,18 @@ function Cell({ column, element }: Readonly<{ column: Column; element: Element }
   return column.code ? <code>{column.value(element)}</code> : column.value(element);
 }
 
-type Properties = { data: Data; enumerations: Enumerations; structure: boolean };
+type Properties = { data: Data; enumerations: Enumerations };
 
-export default function EditArea({ data, enumerations, structure }: Readonly<Properties>) {
+export default function EditArea({ data, enumerations }: Readonly<Properties>) {
   const router = useRouter();
-  // Les objets que ce compte peut modifier (la structure : administrateur seulement).
-  const descriptions = useMemo(
-    () => DESCRIPTIONS.filter((r) => structure || !RESOURCES_STRUCTURE.has(r.key)),
-    [structure],
-  );
-  const [key, setKey] = useState<Resource>(descriptions[0]?.key ?? "module-versions");
+  const [key, setKey] = useState<Resource>(DESCRIPTIONS[0]?.key ?? "module-versions");
   const [search, setSearch] = useState("");
   const [form, setForm] = useState<{ element: Element | null } | null>(null); // element null : création
   const [toDelete, setToDelete] = useState<number | null>(null); // id en attente de confirmation
   const [message, setMessage] = useState<Message | null>(null);
 
   const ctx = useMemo(() => buildContext(data), [data]);
-  const resource = descriptions.find((r) => r.key === key) ?? (descriptions[0] as (typeof DESCRIPTIONS)[number]);
+  const resource = DESCRIPTIONS.find((r) => r.key === key) ?? (DESCRIPTIONS[0] as (typeof DESCRIPTIONS)[number]);
   const editable = resource.editable !== false;
 
   // Le message de confirmation disparaît tout seul après quelques secondes.
@@ -149,10 +142,10 @@ export default function EditArea({ data, enumerations, structure }: Readonly<Pro
   return (
     <div className="edit">
       <nav className="edit-menu">
-        {GROUPS.filter((group) => descriptions.some((r) => r.group === group)).map((group) => (
+        {GROUPS.filter((group) => DESCRIPTIONS.some((r) => r.group === group)).map((group) => (
           <div key={group} className="menu-group">
             <div className="menu-group-title">{group}</div>
-            {descriptions.filter((r) => r.group === group).map((r) => (
+            {DESCRIPTIONS.filter((r) => r.group === group).map((r) => (
               <button
                 type="button"
                 key={r.key}

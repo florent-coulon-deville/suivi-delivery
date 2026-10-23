@@ -1,10 +1,7 @@
 // Export de toute la configuration : GET /configuration → fichier Excel à télécharger.
 //
-// Le serveur Next.js demande le fichier à l'API (GET /api/configuration, avec le jeton de la
-// session) et le transmet au navigateur, qui ne parle jamais à l'API. Le nom du fichier porte celui
+// Le serveur Next.js demande le fichier à l'API (GET /api/configuration) et le transmet au navigateur, qui ne parle jamais à l'API. Le nom du fichier porte celui
 // de l'instance (INSTANCE_NAME), pour ne pas confondre les exports de la recette et de la prod.
-// Ouvert à tout rôle (VIEWER) : on n'exporte que ce qu'on peut déjà lire. Sans session,
-// proxy.ts renvoie vers la page de connexion.
 import { ApiError, download } from "@/lib/api";
 import { readInstance } from "@/lib/settings";
 
@@ -15,11 +12,9 @@ export async function GET() {
   try {
     response = await download("configuration");
   } catch (error) {
-    if (!(error instanceof ApiError)) throw error; // dont la redirection vers la connexion
-    const message =
-      error.status === 403 ? "Droits insuffisants pour exporter" : "Export impossible : l'API ne répond pas";
-    return new Response(`${message}\n`, {
-      status: error.status === 403 ? 403 : 502,
+    if (!(error instanceof ApiError)) throw error;
+    return new Response("Export impossible : l'API ne répond pas\n", {
+      status: 502,
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
   }

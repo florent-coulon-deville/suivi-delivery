@@ -9,7 +9,7 @@
 #           (une image publiée ne change jamais) ;
 #        b. vérifications, sur le commit de l'étiquette : backend, frontend, chart Helm (une
 #           version publiée a forcément été testée) ;
-#        c. images : les cinq, Intel/AMD + ARM, publiées dans ghcr.io sous <version> (jamais
+#        c. images : les deux, Intel/AMD + ARM, publiées dans ghcr.io sous <version> (jamais
 #           « latest ») ;
 #        d. Docker Hub : un seul dépôt pour toute l'application, docker.io/<compte>/suivi-delivery :
 #           les mêmes images recopiées sous <partie>-<version>, et le chart Helm (OCI) sous
@@ -101,7 +101,7 @@ jobs:
         run: |
           echo "$TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
           registry="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}"
-          for part in backend frontend liquibase keycloak postgres; do
+          for part in backend frontend; do
             if docker manifest inspect "$registry/suivi-delivery-$part:$VERSION" > /dev/null 2>&1; then
               echo "::error::$registry/suivi-delivery-$part:$VERSION est déjà publiée : changer de version (une image publiée ne change jamais)."
               exit 1
@@ -176,14 +176,14 @@ jobs:
         run: |
           echo "$DHI_TOKEN" | docker login docker.io --username "$DHI_USERNAME" --password-stdin
           echo "$DHI_TOKEN" | helm registry login registry-1.docker.io --username "$DHI_USERNAME" --password-stdin
-      - name: Recopier les cinq images (amd64 + arm64)
+      - name: Recopier les deux images (amd64 + arm64)
         env:
           DHI_USERNAME: ${{ secrets.DHI_USERNAME }}
           VERSION: ${{ needs.check.outputs.version }}
         run: |
           source="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}"
           target="docker.io/${DHI_USERNAME,,}"
-          for part in backend frontend liquibase keycloak postgres; do
+          for part in backend frontend; do
             docker buildx imagetools create --tag "$target/suivi-delivery:$part-$VERSION" "$source/suivi-delivery-$part:$VERSION"
             echo "$target/suivi-delivery:$part-$VERSION"
           done

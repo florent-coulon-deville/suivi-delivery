@@ -1,11 +1,9 @@
 // Thème de couleurs de l'interface : AUTO (comme l'ordinateur), LIGHT ou DARK.
 //
-// Le choix est gardé DANS LE COMPTE (API : PATCH /api/me), pour suivre la personne sur tous ses
-// postes. Le serveur Next.js en garde une copie dans le cookie sd_theme, posé à la connexion
-// (connexion/retour/route.ts) et à chaque changement (« Mon compte » → Apparence) : il peut ainsi
-// envoyer chaque page directement dans le bon thème, sans appeler l'API ni faire clignoter
-// l'écran. La page de connexion (Keycloak), où l'on ne sait pas encore qui est là, garde le
-// dernier thème choisi sur ce navigateur (copié par proxy.ts dans le cookie sd_theme_auth).
+// Le choix est gardé dans un cookie de ce navigateur (sd_theme), posé à chaque changement (menu
+// « Thème » de la barre du haut, app/theme.ts) : le serveur Next.js envoie ainsi chaque page
+// directement dans le bon thème, sans faire clignoter l'écran. Pas de comptes : le choix vaut pour
+// ce navigateur seulement.
 //
 // Le thème est posé sur <html data-theme="light|dark"> (app/layout.tsx) ; les couleurs sont
 // dans app/styles.css.
@@ -14,8 +12,6 @@ export const THEMES = ["AUTO", "LIGHT", "DARK"] as const;
 export type Theme = (typeof THEMES)[number];
 
 export const COOKIE_THEME = "sd_theme";
-// Copie du thème pour les pages de connexion de Keycloak (proxy.ts) : lisible par leur code, sous /auth.
-export const COOKIE_THEME_AUTH = "sd_theme_auth";
 
 export const isTheme = (value: unknown): value is Theme => THEMES.includes(value as Theme);
 

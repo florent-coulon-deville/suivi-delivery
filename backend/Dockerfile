@@ -40,8 +40,10 @@ COPY app ./app
 
 # OpenShift lance le conteneur avec un utilisateur au hasard, du groupe 0 : on donne les
 # droits à ce groupe. Fait ici, car l'image finale n'a pas de shell pour le faire (les droits
-# sont gardés par la copie).
-RUN chgrp -R 0 /app && chmod -R g=u /app
+# sont gardés par la copie). /data : le dossier de la base SQLite (APP_DB_FILE), où l'API écrit ;
+# un volume y est monté pour garder les données (docker-deploy.zsh, chart Helm).
+RUN chgrp -R 0 /app && chmod -R g=u /app \
+    && mkdir /data && chmod 770 /data
 
 # ---------- Étape 2 : exécution ----------
 # Même Python que l'étape 1 (/usr/bin/python3.14) : l'environnement .venv y fonctionne tel quel.
@@ -51,14 +53,17 @@ FROM dhi.io/python:3.14.8-debian13
 
 WORKDIR /app
 COPY --from=build /app /app
+# --chown : sans lui, la copie donnerait le dossier à root (droits 770 gardés : groupe 0 compris).
+COPY --from=build --chown=1001:0 /data /data
 
 # Réglages par défaut dans un conteneur (modifiables au lancement, voir docs/deploiement.md).
-# Les données sont dans la base PostgreSQL (APP_DB_*, donnés au lancement) : rien n'est écrit
-# dans le conteneur.
+# Les données sont dans le fichier SQLite APP_DB_FILE, sous /data : y monter un volume, sinon
+# elles sont perdues avec le conteneur.
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     APP_HOST=0.0.0.0 \
-    APP_PORT=8000
+    APP_PORT=8000 \
+    APP_DB_FILE=/data/suivi-delivery.sqlite
 
 USER 1001
 EXPOSE 8000

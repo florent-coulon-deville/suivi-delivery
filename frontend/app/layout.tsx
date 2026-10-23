@@ -1,4 +1,4 @@
-// Cadre commun à toutes les pages : bandeau de l'instance, barre du haut, onglets selon le rôle.
+// Cadre commun à toutes les pages : bandeau de l'instance, barre du haut, onglets.
 // Composant « serveur » : il est calculé sur le serveur, le navigateur ne reçoit que le HTML.
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
@@ -6,8 +6,7 @@ import type { ReactNode } from "react";
 
 import Navigation from "@/components/Navigation";
 import { readInstance } from "@/lib/settings";
-import { isAdmin, readSession, canEdit } from "@/lib/session";
-import { themeAttribute, COOKIE_THEME } from "@/lib/theme";
+import { isTheme, themeAttribute, COOKIE_THEME } from "@/lib/theme";
 
 import "./styles.css";
 
@@ -22,16 +21,9 @@ export function generateMetadata(): Metadata {
 
 export default async function Frame({ children }: Readonly<{ children: ReactNode }>) {
   const instance = readInstance();
-  // Seuls le nom et le rôle vont au navigateur, pour les menus ; jamais le jeton.
-  const session = await readSession();
-  const user = session && {
-    name: session.name,
-    role: session.role,
-    canEdit: canEdit(session.role),
-    isAdmin: isAdmin(session.role),
-  };
-  // Thème choisi par la personne (« Mon compte » → Apparence), copié dans un cookie : voir lib/theme.ts.
-  const theme = themeAttribute((await cookies()).get(COOKIE_THEME)?.value);
+  // Thème choisi sur ce navigateur (menu « Thème »), gardé dans un cookie : voir lib/theme.ts.
+  const chosen = (await cookies()).get(COOKIE_THEME)?.value;
+  const theme = themeAttribute(chosen);
   return (
     <html lang="fr" data-theme={theme}>
       <body>
@@ -48,7 +40,7 @@ export default async function Frame({ children }: Readonly<{ children: ReactNode
               </span>{" "}
               Suivi de la delivery
             </div>
-            <Navigation user={user} />
+            <Navigation theme={isTheme(chosen) ? chosen : "AUTO"} />
           </div>
         </header>
         <main className="page">{children}</main>

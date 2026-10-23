@@ -1,29 +1,16 @@
-"""Journal des actions : chaque saisie acceptée est notée (qui, quand, quoi, avant / après)."""
+"""Journal des actions : chaque saisie acceptée est notée (quand, quoi, avant / après)."""
 
 from datetime import UTC, datetime, timedelta
 
-from tests.conftest import a_module, create, token
-
-PASSWORD = "a-strong-password"
+from tests.conftest import a_module, create
 
 
 def now() -> datetime:
     return datetime.now(UTC)
 
 
-def create_person(client, identifier: str = "paul", role: str = "EDITOR") -> dict:
-    body = {"identifier": identifier, "name": identifier, "kind": "PERSON", "role": role}
-    response = client.post("/api/accounts", json={**body, "password": PASSWORD})
-    assert response.status_code == 201, response.json()
-    return response.json()
-
-
-def as_(client, identifier: str) -> dict:
-    return {"Authorization": f"Bearer {token(client.app, identifier)}"}
-
-
-def audit_log(client, header: dict | None = None, **filters) -> list[dict]:
-    response = client.get("/api/audit-log", params=filters, headers=header or {})
+def audit_log(client, **filters) -> list[dict]:
+    response = client.get("/api/audit-log", params=filters)
     assert response.status_code == 200, response.json()
     return response.json()
 
@@ -36,7 +23,6 @@ def test_creation_logged(client):
     [row] = audit_log(client)
     assert row["action"] == "CREATE"
     assert (row["object"], row["object_id"]) == ("environments", str(int["id"]))
-    assert (row["author"], row["author_kind"]) == ("admin", "PERSON")
     assert row["before"] is None
     assert row["after"]["code"] == "int"
     assert abs(now() - datetime.fromisoformat(row["date"])) < timedelta(minutes=1)
@@ -98,86 +84,25 @@ def test_inconsistent_edit_cancelled_not_logged(client, dataset):
     assert len(audit_log(client)) == before
 
 
-# --- Comptes et secrets ----------------------------------------------------------
+# --- Lecture seule --------------------------------------------------------------
 
 
-def test_account_created_without_password(client):
-    paul = create_person(client)
-    [row] = audit_log(client, object="accounts")
-    assert (row["object_id"], row["action"]) == (paul["id"], "CREATE")
-    assert row["after"]["identifier"] == "paul"
-    assert PASSWORD not in str(row)
-
-
-def test_temporary_password_logged_without_secret(client):
-    paul = create_person(client)
-    response = client.patch(f"/api/accounts/{paul['id']}", json={"password": "another-password"})
-    assert response.status_code == 200
-    row = audit_log(client, object="accounts", action="UPDATE")[0]
-    assert row["after"]["password"] == "changé"
-    assert "another-password" not in str(row)
-
-
-def test_new_key_logged_without_key(client):
-    response = client.post(
-        "/api/accounts", json={"identifier": "tool", "name": "O", "kind": "PROGRAM", "role": "EDITOR"}
-    )
-    tool = response.json()
-    key = client.post(f"/api/accounts/{tool['id']}/key").json()["key"]
-    row = audit_log(client, object="accounts", action="UPDATE")[0]
-    assert row["after"]["key"] == "changé"
-    everything = str(audit_log(client))
-    assert key not in everything
-    assert tool["key"] not in everything
-
-
-def test_edit_by_program(client):
-    client.post("/api/accounts", json={"identifier": "tool", "name": "O", "kind": "PROGRAM", "role": "EDITOR"})
-    version = {"module_id": a_module(client)["id"], "number": "1.0.0"}
-    assert client.post("/api/module-versions", json=version, headers=as_(client, "tool")).status_code == 201
-    [row] = audit_log(client, object="module_versions")
-    assert (row["author"], row["author_kind"]) == ("tool", "PROGRAM")
-
-
-def test_author_kept_after_account_deletion(client):
-    version = {"module_id": a_module(client)["id"], "number": "1.0.0"}
-    paul = create_person(client)
-    client.post("/api/module-versions", json=version, headers=as_(client, "paul"))
-    assert client.delete(f"/api/accounts/{paul['id']}").status_code == 204
-    [row] = audit_log(client, object="module_versions")
-    assert (row["author_id"], row["author"]) == (paul["id"], "paul")
-
-
-# --- Qui lit quoi ----------------------------------------------------------------
-
-
-def test_reserved_to_admin(client):
-    create_person(client, "lea", role="VIEWER")
-    create_person(client, "paul", role="EDITOR")
-    create(client, "clusters", code="cb01", label="Cluster")
-    for identifier in ("lea", "paul"):
-        assert client.get("/api/audit-log", headers=as_(client, identifier)).status_code == 403
-    assert {row["object"] for row in audit_log(client)} == {"accounts", "clusters"}  # l'admin voit tout
-
-
-def test_read_only(client, anonymous):
+def test_read_only(client):
     assert client.post("/api/audit-log", json={}).status_code == 405
     assert client.delete("/api/audit-log").status_code == 405
-    assert anonymous.get("/api/audit-log").status_code == 401
 
 
 # --- Filtres ---------------------------------------------------------------------
 
 
 def test_filters(client):
-    create_person(client)
     int = create(client, "environments", code="int", label="A")
     create(client, "environments", code="rec", label="T")
     version = {"module_id": a_module(client)["id"], "number": "1.0.0"}
-    client.post("/api/module-versions", json=version, headers=as_(client, "paul"))
+    client.post("/api/module-versions", json=version)
     client.patch(f"/api/environments/{int['id']}", json={"label": "A2"})
 
-    assert [row["object"] for row in audit_log(client, author="PAUL")] == ["module_versions"]
+    assert len(audit_log(client, object="MODULE_VERSIONS")) == 1
     assert len(audit_log(client, object="environments")) == 3
     assert [row["action"] for row in audit_log(client, object="environments", object_id=str(int["id"]))] == [
         "UPDATE",

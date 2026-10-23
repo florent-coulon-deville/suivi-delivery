@@ -1,9 +1,9 @@
-"""Une transaction par requête (stockage PostgreSQL) : tout ce que fait une requête est
+"""Une transaction par requête (stockage SQLite) : tout ce que fait une requête est
 enregistré ensemble, ou pas du tout.
 
 Pour chaque appel sous /api :
-  1. on ouvre une transaction (avec le verrou « une écriture à la fois » si la méthode modifie :
-     POST, PUT, PATCH, DELETE ; voir app/storage_postgres.py) ;
+  1. on ouvre une transaction, qui prend le verrou « une requête à la fois »
+     (voir app/storage_sqlite.py) ;
   2. la route travaille ;
   3. juste AVANT d'envoyer la réponse, on enregistre (commit). Le client ne reçoit donc jamais
      un « 201 Créé » pour une donnée qui ne serait pas enregistrée ;
@@ -22,7 +22,7 @@ sont faits dans un fil d'exécution à part (to_thread) pour ne pas bloquer les 
 
 from anyio import to_thread
 
-from app.storage_postgres import SESSION, PostgresStorage, Session
+from app.storage_sqlite import SESSION, Session, SqliteStorage
 
 READS = {"GET", "HEAD", "OPTIONS"}
 
@@ -33,7 +33,7 @@ class RequestTransaction:
 
     async def __call__(self, scope, receive, send):
         storage = scope["app"].state.storage if scope["type"] == "http" else None
-        if not isinstance(storage, PostgresStorage) or not scope["path"].startswith("/api"):
+        if not isinstance(storage, SqliteStorage) or not scope["path"].startswith("/api"):
             return await self.app(scope, receive, send)
 
         session: Session = await to_thread.run_sync(storage.open_session, scope["method"] not in READS)

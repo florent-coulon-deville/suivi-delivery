@@ -37,7 +37,7 @@
 #                                   images <registre>/suivi-delivery-*:<version>, qui doivent
 #                                   donc être publiées (par la CI, à la sortie de la version).
 # Les deux : helm upgrade --install, puis « helm test ». Si helm/suivi-delivery/values-secret.yaml
-# existe, il est utilisé (sinon : mots de passe et clé générés à la première installation).
+# existe (accès à un registre privé), il est utilisé.
 
 setopt errexit nounset pipefail
 
@@ -48,7 +48,7 @@ REGISTRY=""                    # registre des images publiées (--registry ; dé
 LOCAL_PORT=8080                # pour « kubectl port-forward » (affiché à la fin)
 ENGINE=docker                  # fabrique les images et fait tourner kind : docker, ou podman (--podman)
 # Les images du projet : nom → dossier de son Dockerfile (image « suivi-delivery-<nom> »).
-typeset -A FOLDERS=(backend backend frontend frontend liquibase liquibase keycloak keycloak postgres postgres)
+typeset -A FOLDERS=(backend backend frontend frontend)
 
 step()  { print -P "\n%F{blue}==> $1%f"; }
 ok()     { print -P "%F{green}✔ $1%f"; }
@@ -220,12 +220,12 @@ if [[ -f $CHART/values-secret.yaml ]]; then
   SECRETS=(-f $CHART/values-secret.yaml)
   ok "Secrets lus dans $CHART/values-secret.yaml"
 else
-  info "Pas de $CHART/values-secret.yaml : mots de passe (admin, base, Keycloak) et clé du client de l'API générés"
+  info "Pas de $CHART/values-secret.yaml : pas de registre privé"
 fi
 INSTANCE=()
-[[ $KIND == false ]] || INSTANCE=(--set application.nomInstance=kind)
+[[ $KIND == false ]] || INSTANCE=(--set application.instanceName=kind)
 $H upgrade --install $INSTALLATION ./$CHART -n $NAMESPACE --create-namespace \
-  "${SECRETS[@]}" "${VALUES[@]}" "${IMAGES[@]}" "${INSTANCE[@]}" --wait --timeout 10m  # Keycloak : long au premier démarrage
+  "${SECRETS[@]}" "${VALUES[@]}" "${IMAGES[@]}" "${INSTANCE[@]}" --wait --timeout 5m
 ok "Chart installé (installation « $INSTALLATION », espace de noms « $NAMESPACE »)"
 
 # --- 4. Test -------------------------------------------------------------------------------------
@@ -241,10 +241,9 @@ else
   print "  Ouvrir l'interface  ${K[*]} port-forward -n $NAMESPACE service/$INSTALLATION-frontend $LOCAL_PORT:8080"
   print "                      puis http://localhost:$LOCAL_PORT"
 fi
-print "  Compte admin        mot de passe initial : ${K[*]} get secret $INSTALLATION-application -n $NAMESPACE -o jsonpath='{.data.APP_ADMIN_PASSWORD}' | base64 -d; echo"
 print "  État des pods       ${K[*]} get pods -n $NAMESPACE"
 if [[ $KIND == true ]]; then
   print "  Tout supprimer      ${${ENGINE:#docker}:+KIND_EXPERIMENTAL_PROVIDER=podman }kind delete cluster --name $CLUSTER_KIND"
 else
-  print "  Désinstaller        ${H[*]} uninstall $INSTALLATION -n $NAMESPACE   (la base et le Secret sont conservés)"
+  print "  Désinstaller        ${H[*]} uninstall $INSTALLATION -n $NAMESPACE   (le disque des données est conservé)"
 fi

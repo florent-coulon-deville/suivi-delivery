@@ -1,8 +1,6 @@
 {{- /*
 L'interface (serveur Next.js). Elle seule appelle l'API (API_URL), par son Service interne.
-Elle sert aussi les pages de connexion de Keycloak, sous /auth (proxy.ts) : elles ont ainsi la même
-adresse que l'outil. Les étiquettes « suivi-delivery/api-access » et « suivi-delivery/acces-keycloak »
-l'autorisent à joindre l'API et Keycloak (NetworkPolicy).
+L'étiquette « suivi-delivery/api-access » l'autorise à joindre l'API (NetworkPolicy).
 */ -}}
 
 {{- $part := dict "context" . "part" "frontend" }}
@@ -24,7 +22,6 @@ spec:
         {{- include "sd.labels" . | nindent 8 }}
         {{- include "sd.selector" $part | nindent 8 }}
         suivi-delivery/api-access: "true"
-        suivi-delivery/acces-keycloak: "true"
     spec:
       serviceAccountName: {{ include "sd.name" . }}
       automountServiceAccountToken: false
@@ -45,10 +42,6 @@ spec:
             - { name: API_URL, value: "http://{{ include "sd.name" . }}-backend:8000" }
             - { name: INSTANCE_NAME, value: {{ .Values.application.instanceName | quote }} }
             - { name: INSTANCE_COLOR, value: {{ .Values.application.instanceColor | quote }} }
-            # Connexion par Keycloak : adresse publique (retour de connexion, pages servies sous /auth)
-            # et adresse interne de Keycloak (échange des codes, relais des pages).
-            - { name: APP_FRONTEND_URL, value: {{ include "sd.frontendUrl" . | quote }} }
-            - { name: KEYCLOAK_URL, value: {{ include "sd.keycloakUrl" . | quote }} }
           readinessProbe:
             httpGet: { path: /health, port: http }
             periodSeconds: 10

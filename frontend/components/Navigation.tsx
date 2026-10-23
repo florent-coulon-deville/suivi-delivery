@@ -1,42 +1,45 @@
 "use client";
-// Barre du haut : onglets selon le rôle, bouton « ⟳ Actualiser », et le nom de la personne,
-// qui ouvre un menu (Mon compte, Se déconnecter).
+// Barre du haut : onglets, bouton « ⟳ Actualiser », « ⤓ Exporter », et le menu « Thème ».
 // Composant « client » : il a besoin de savoir, dans le navigateur, sur quelle page on se
 // trouve pour souligner l'onglet actif.
 //
-// Masquer un onglet n'est qu'un confort : chaque page vérifie le rôle sur le serveur, puis l'API.
+// Pas de connexion ni de rôles : tous les onglets sont visibles par tout le monde.
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTransition } from "react";
 
-import { logout } from "@/app/login/actions";
+import { changeTheme } from "@/app/theme";
 import Menu from "@/components/Menu";
-import type { Role } from "@/lib/session";
+import type { Theme } from "@/lib/theme";
 
-type User = { name: string; role: Role | null; canEdit: boolean; isAdmin: boolean };
+const AREAS = [
+  { path: "/", title: "Ce qui tourne" },
+  { path: "/edit", title: "Saisie" },
+  { path: "/import", title: "Import" },
+  { path: "/audit-log", title: "Journal" },
+];
 
-export default function Navigation({ user }: Readonly<{ user: User | null }>) {
+const THEMES: [Theme, string, string][] = [
+  ["AUTO", "◐ Automatique", "comme le réglage de l'ordinateur"],
+  ["LIGHT", "☀ Clair", "toujours clair"],
+  ["DARK", "☾ Sombre", "toujours sombre"],
+];
+
+export default function Navigation({ theme }: Readonly<{ theme: Theme }>) {
   const page = usePathname();
   const router = useRouter();
   const [loading, start] = useTransition();
-  if (!user) return <span className="area" />;
 
-  const areas = [
-    { path: "/", title: "Ce qui tourne" },
-    ...(user.canEdit ? [{ path: "/edit", title: "Saisie" }] : []),
-    ...(user.isAdmin
-      ? [
-          { path: "/import", title: "Import" },
-          { path: "/audit-log", title: "Journal" },
-          { path: "/accounts", title: "Comptes" },
-        ]
-      : []),
-  ];
+  // Le serveur range le choix dans un cookie, puis renvoie la page dans le nouveau thème.
+  const choose = (chosen: Theme) =>
+    start(async () => {
+      if ((await changeTheme(chosen)).ok) router.refresh();
+    });
 
   return (
     <>
       <nav className="tabs">
-        {areas.map(({ path, title }) => {
+        {AREAS.map(({ path, title }) => {
           const active = path === "/" ? page === "/" : page.startsWith(path);
           return (
             <Link key={path} href={path} className={active ? "tab active" : "tab"}>
@@ -60,26 +63,20 @@ export default function Navigation({ user }: Readonly<{ user: User | null }>) {
       <a className="button-secondary" href="/configuration" title="Toute la configuration dans un fichier Excel">
         ⤓ Exporter
       </a>
-      {/* Le nom ouvre un menu : « Mon compte » et « Se déconnecter » regroupés. */}
-      <Menu
-        className={page.startsWith("/me") ? "button-secondary active" : "button-secondary"}
-        title="Mon compte et déconnexion"
-        label={
-          <>
-            <span className="user-name">{user.name}</span> <span aria-hidden="true">▾</span>
-          </>
-        }
-      >
-        <div className="menu-info">Rôle : {user.role?.toLowerCase() ?? "none"}</div>
-        <Link href="/me" className="menu-element">
-          Mon compte
-        </Link>
-        <div className="menu-separator" />
-        <form action={logout}>
-          <button type="submit" className="menu-element">
-            Se déconnecter
+      {/* Thème de couleurs, retenu par ce navigateur (lib/theme.ts). */}
+      <Menu title="Thème de couleurs" label={<>Thème <span aria-hidden="true">▾</span></>}>
+        {THEMES.map(([value, label, help]) => (
+          <button
+            type="button"
+            key={value}
+            title={help}
+            className="menu-element"
+            aria-current={theme === value}
+            onClick={() => choose(value)}
+          >
+            {label} {theme === value && "✓"}
           </button>
-        </form>
+        ))}
       </Menu>
     </>
   );

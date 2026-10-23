@@ -1,16 +1,14 @@
 {{- /*
-L'API (backend), en backend.replicas exemplaires : ils partagent la base PostgreSQL.
+L'API (backend) : un seul exemplaire au plus (backend.replicas : 0 ou 1). Ses données sont dans un
+fichier SQLite (APP_DB_FILE), sur le disque du PersistentVolumeClaim « <installation>-data », monté
+sur /data. L'API crée elle-même ses tables au premier démarrage.
 
-Avant l'API, deux conteneurs de préparation (« initContainers »), l'un après l'autre :
-  1. wait-for-database : attend que la base réponde (pg_isready, de l'image PostgreSQL du projet) ;
-  2. structure    : Liquibase applique les changements de structure qui manquent. Avec plusieurs
-                    exemplaires, le verrou de Liquibase (table databasechangeloglock) fait passer
-                    un seul Liquibase à la fois ; les suivants n'ont plus rien à faire.
+« Recreate » : à une mise à jour, l'ancien pod s'arrête AVANT que le nouveau démarre. Deux API ne
+travaillent donc jamais en même temps sur le même fichier (et le disque, attaché à un seul nœud à
+la fois, est libéré pour le nouveau pod).
 Probes : voir docs/deploiement.md § 8.
 */ -}}
 {{- $part := dict "context" . "part" "backend" }}
-{{- $secret := include "sd.applicationSecret" . }}
-{{- $host := include "sd.databaseHost" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -20,6 +18,8 @@ metadata:
     app.kubernetes.io/component: backend
 spec:
   replicas: {{ .Values.backend.replicas }}
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       {{- include "sd.selector" $part | nindent 6 }}
@@ -28,10 +28,6 @@ spec:
       labels:
         {{- include "sd.labels" . | nindent 8 }}
         {{- include "sd.selector" $part | nindent 8 }}
-        suivi-delivery/acces-keycloak: "true"
-      annotations:
-        # Un secret changé dans values-secret.yaml redémarre l'API pour qu'elle le prenne en compte.
-        suivi-delivery/secrets-checksum: {{ printf "%s%s" ((.Values.database).password | default "") (.Values.application.keycloakClientSecret | default "") | sha256sum | trunc 16 }}
     spec:
       serviceAccountName: {{ include "sd.name" . }}
       automountServiceAccountToken: false
@@ -40,48 +36,9 @@ spec:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
-      initContainers:
-        - name: wait-for-database
-          image: {{ include "sd.image" (dict "context" . "part" "postgresql") }}
-          imagePullPolicy: {{ .Values.images.pullPolicy }}
-          command: ["sh", "-c"]
-          args:
-            - |
-              until pg_isready -q -h "$DB_HOST" -p "$PORT" -U "$DB_USER" -d "$DB_NAME"; do
-                echo "Attente de la base PostgreSQL $DB_HOST:$PORT…"
-                sleep 2
-              done
-              echo "La base répond."
-          env:
-            - { name: DB_HOST, value: {{ $host | quote }} }
-            - { name: PORT, value: {{ .Values.database.port | quote }} }
-            - { name: DB_USER, value: {{ .Values.database.user | quote }} }
-            - { name: DB_NAME, value: {{ .Values.database.name | quote }} }
-          resources:
-            requests: { cpu: 10m, memory: 16Mi, ephemeral-storage: 10Mi }
-            limits: { cpu: 100m, memory: 64Mi, ephemeral-storage: 50Mi }
-          {{- include "sd.containerSecurity" . | nindent 10 }}
-            {{- include "sd.postgresUser" . | nindent 12 }}
-        - name: structure
-          image: {{ include "sd.image" (dict "context" . "part" "liquibase") }}
-          imagePullPolicy: {{ .Values.images.pullPolicy }}
-          args: ["update"]
-          env:
-            - name: LIQUIBASE_COMMAND_URL
-              value: {{ printf "jdbc:postgresql://%s:%v/%s?currentSchema=%s" $host .Values.database.port .Values.database.name .Values.database.schema | quote }}
-            - { name: LIQUIBASE_COMMAND_USERNAME, value: {{ .Values.database.user | quote }} }
-            - name: LIQUIBASE_COMMAND_PASSWORD
-              valueFrom:
-                secretKeyRef: { name: {{ $secret }}, key: APP_DB_PASSWORD }
-            # Liquibase (Java) écrit ses fichiers temporaires dans /tmp et HOME : un disque éphémère.
-            - { name: HOME, value: /tmp }
-            - { name: JAVA_TOOL_OPTIONS, value: "-Djava.io.tmpdir=/tmp" }
-          resources:
-            requests: { cpu: 100m, memory: 256Mi, ephemeral-storage: 50Mi }
-            limits: { cpu: "1", memory: 512Mi, ephemeral-storage: 500Mi }
-          {{- include "sd.containerSecurity" . | nindent 10 }}
-          volumeMounts:
-            - { name: tmp, mountPath: /tmp }
+        # Le disque des données appartient au groupe 0 : l'utilisateur du conteneur (au hasard sur
+        # OpenShift, 1001 ailleurs) peut y écrire.
+        fsGroup: 0
       containers:
         - name: backend
           image: {{ include "sd.image" $part }}
@@ -92,23 +49,9 @@ spec:
           env:
             - { name: APP_HOST, value: "0.0.0.0" }
             - { name: APP_PORT, value: "8000" }
-            - { name: APP_DB_HOST, value: {{ $host | quote }} }
-            - { name: APP_DB_PORT, value: {{ .Values.database.port | quote }} }
-            - { name: APP_DB_NAME, value: {{ .Values.database.name | quote }} }
-            - { name: APP_DB_SCHEMA, value: {{ .Values.database.schema | quote }} }
-            - { name: APP_DB_USER, value: {{ .Values.database.user | quote }} }
-            - name: APP_DB_PASSWORD
-              valueFrom:
-                secretKeyRef: { name: {{ $secret }}, key: APP_DB_PASSWORD }
+            - { name: APP_DB_FILE, value: /data/suivi-delivery.sqlite }
             - { name: APP_LOG_LEVEL, value: {{ .Values.application.logLevel | quote }} }
             - { name: APP_DOCS, value: {{ ternary "oui" "non" .Values.application.swagger | quote }} }
-            # Connexion par Keycloak : son adresse interne (clés de signature, gestion des comptes),
-            # la clé du client de l'API, et l'adresse publique de l'interface (émetteur des jetons).
-            - { name: APP_KEYCLOAK_URL, value: {{ include "sd.keycloakUrl" . | quote }} }
-            - name: APP_KEYCLOAK_CLIENT_SECRET
-              valueFrom:
-                secretKeyRef: { name: {{ $secret }}, key: APP_KEYCLOAK_CLIENT_SECRET }
-            - { name: APP_FRONTEND_URL, value: {{ include "sd.frontendUrl" . | quote }} }
           startupProbe:
             httpGet: { path: /startupz, port: http }
             periodSeconds: 2
@@ -124,7 +67,11 @@ spec:
             {{- toYaml .Values.backend.resources | nindent 12 }}
           {{- include "sd.containerSecurity" . | nindent 10 }}
           volumeMounts:
+            - { name: data, mountPath: /data }
             - { name: tmp, mountPath: /tmp }
       volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "sd.name" . }}-data
         - name: tmp
           emptyDir: {}

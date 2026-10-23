@@ -19,10 +19,9 @@ const config: NextConfig = {
   // Next.js attend une promesse ; la liste est fixe, rien à attendre : d'où Promise.resolve.
   headers: () => Promise.resolve([{ source: "/:path*", headers: SECURITY_HEADERS }]),
   experimental: {
-    // Import de la configuration (/import) : le fichier Excel passe par une Server Action, puis par
-    // proxy.ts. L'API en accepte 10 Mo ; un peu plus ici pour l'enveloppe de l'envoi (multipart).
+    // Import de la configuration (/import) : le fichier Excel passe par une Server Action. L'API en
+    // accepte 10 Mo ; un peu plus ici pour l'enveloppe de l'envoi (multipart).
     serverActions: { bodySizeLimit: "11mb" },
-    proxyClientMaxBodySize: "11mb",
   },
 };
 

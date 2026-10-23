@@ -5,7 +5,7 @@
 # Version PowerShell 7 (pwsh) de podman-deploy.zsh. Voir docs/deploiement.md, section 7.
 #
 # Usage, depuis n'importe quel dossier :
-#   .\deployment\podman-deploy.ps1 [postgres|liquibase|keycloak|backend|frontend] [--reset]
+#   .\deployment\podman-deploy.ps1 [backend|frontend] [--reset]
 #
 # Podman doit répondre : sur Windows (et Mac), sa machine doit tourner (podman machine start).
 

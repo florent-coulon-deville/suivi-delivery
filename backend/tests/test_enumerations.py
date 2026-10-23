@@ -1,6 +1,6 @@
 """Tests de /api/enumerations : les valeurs des listes fermées, pour l'interface."""
 
-from tests.conftest import application, connected
+from tests.conftest import application, started
 
 
 def test_values_of_closed_lists(client):
@@ -15,7 +15,7 @@ def test_values_of_closed_lists(client):
 
 
 def test_available_even_without_swagger():
-    with connected(application(docs=False)) as client:
+    with started(application(docs=False)) as client:
         assert client.get("/api/openapi.json").status_code == 404
         assert client.get("/api/enumerations").status_code == 200
 

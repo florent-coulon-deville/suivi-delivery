@@ -1,10 +1,10 @@
 """Routes de santé, pour Kubernetes / OpenShift (probes).
 
 Kubernetes appelle régulièrement ces adresses pour savoir où en est l'API. Elles sont
-hors de /api (le frontend ne les relaie donc pas vers l'extérieur), ne demandent aucun
-jeton et ne montrent aucune donnée.
+hors de /api (le frontend ne les relaie donc pas vers l'extérieur) et ne montrent aucune
+donnée.
 
-  GET /startupz   200 | 503  « As-tu fini de démarrer ? »  (connectée à la base)
+  GET /startupz   200 | 503  « As-tu fini de démarrer ? »  (base ouverte)
   GET /readyz     200 | 503  « Peux-tu recevoir des appels ? »  (démarrée, et la base répond)
   GET /livez      200        « Es-tu encore en vie ? »  (répondre suffit)
 

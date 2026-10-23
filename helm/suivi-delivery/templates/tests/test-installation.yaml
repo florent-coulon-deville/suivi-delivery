@@ -1,7 +1,6 @@
 {{- /*
 Test Helm (« helm test <installation> ») : vérifie, depuis l'intérieur du cluster, que l'interface
-répond (/health, page de connexion), qu'elle sert bien Keycloak sous /auth (configuration du
-domaine) et que l'API est prête (/readyz). Utilise l'image de l'interface, qui contient Node.js.
+répond (/health, page « Ce qui tourne ») et que l'API est prête (/readyz). Utilise l'image de l'interface, qui contient Node.js.
 */ -}}
 apiVersion: v1
 kind: Pod
@@ -32,8 +31,7 @@ spec:
         - |
           const urls = [
             "http://{{ include "sd.name" . }}-frontend:8080/health",
-            "http://{{ include "sd.name" . }}-frontend:8080/login",
-            "http://{{ include "sd.name" . }}-frontend:8080/auth/realms/suivi-delivery/.well-known/openid-configuration",
+            "http://{{ include "sd.name" . }}-frontend:8080/",
             "http://{{ include "sd.name" . }}-backend:8000/readyz",
           ];
           (async () => {

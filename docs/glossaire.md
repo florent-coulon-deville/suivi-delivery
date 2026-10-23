@@ -20,28 +20,21 @@ Ce tableau donne, pour chaque mot métier, le nom utilisé dans le code.
 | paramètre technique, applicatif (rang) | `parameter` : `TECHNICAL`, `APPLICATION` (`position`) | tables `parameters`, `parameter_namespaces` |
 | emplacement (nom de release) | `slot` (`release_name`) | table `slots`, `/api/slots` |
 | installation | `installation` (`slot_id`, `technical_parameter_id`, `application_parameter_id`) | `/api/installations` |
-| journal des actions (auteur, sorte, objet, avant, après) | `audit_log` (`author`, `author_kind`, `object`, `before`, `after`) | `/api/audit-log`, écran `/audit-log` |
+| journal des actions (objet, avant, après) | `audit_log` (`object`, `before`, `after`) | `/api/audit-log`, écran `/audit-log` |
 | création, modification, suppression | `CREATE`, `UPDATE`, `DELETE` | |
-| personne, programme | `PERSON`, `PROGRAM` | |
-| compte, mon compte | `account`, `me` | `/api/accounts`, `/api/me` |
-| thème : automatique, clair, sombre | `theme` : `AUTO`, `LIGHT`, `DARK` | table `preferences` (`subject`) |
-| rôles : consultation < saisie < administration | `VIEWER` < `EDITOR` < `ADMIN` | rôles du domaine Keycloak |
+| thème : automatique, clair, sombre | `theme` : `AUTO`, `LIGHT`, `DARK` | cookie `sd_theme` de l'interface |
 | aperçu d'un import | `dry_run` | `PATCH /api/configuration?dry_run=true` |
 
 ## Les briques techniques
 
 | Mot | Dans le code |
 | --- | --- |
-| stockage (en mémoire, PostgreSQL) | `storage` (`MemoryStorage`, `PostgresStorage`) |
+| stockage (en mémoire, SQLite) | `storage` (`MemoryStorage`, `SqliteStorage`) |
 | réglages | `settings` (`app/settings.py`, `lib/settings.ts`) |
-| sécurité, accès | `security`, `access` |
-| annuaire (les comptes dans Keycloak) | `directory` |
 | cohérence d'ensemble | `consistency` (`app/consistency.py`) |
 | santé (probes) | `health` (`/health` pour l'interface) |
 | saisie (l'espace de saisie de l'interface) | `edit` (page `/edit`) |
-| connexion | `login` (pages `/login`, `/login/callback`, `/login/end`…) |
 | écran « Ce qui tourne » | `view` (`components/view/`) |
-| clients Keycloak : interface, outils | `suivi-delivery-frontend`, `suivi-delivery-tools` |
 
 ## Le poste, la CI et le chart
 

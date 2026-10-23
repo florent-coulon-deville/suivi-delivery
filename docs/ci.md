@@ -10,11 +10,11 @@ Sur GitHub, chaque fichier de `.github/workflows/` part tout seul, en parallèle
 | --- | --- |
 | `snapshot.yml` | **pipeline snapshot** : chaque push, toutes branches (sauté sur le commit de version) ; bouton *Run workflow* |
 | `release.yml` | **pipeline release** : chaque push sur `main` (release-please) ; bouton pour relancer une publication |
-| `_tests-backend.yml` | brique : backend, en mémoire puis sur PostgreSQL |
+| `_tests-backend.yml` | brique : backend, en mémoire puis sur SQLite |
 | `_tests-frontend.yml` | brique : frontend |
 | `_tests-helm.yml` | brique : chart Helm (chart-verifier) |
 | `_version.yml` | brique : version unique |
-| `_images.yml` | brique : fabrication et publication des cinq images (étiquette, processeurs, cache… donnés par le pipeline) |
+| `_images.yml` | brique : fabrication et publication des deux images (étiquette, processeurs, cache… donnés par le pipeline) |
 | `.github/actions/connexion-dhi/` | action du dépôt : connexion à dhi.io, réessayée en cas de coupure (§ 3) |
 | `.github/dependabot.yml` | réglages des PR de **Dependabot** : corrections de sécurité seulement, titre `fix(deps): …` (voir [git.md § 4](git.md#4-réglages-du-dépôt-github)) |
 | `.github/workflows/pr-title.yml` | sur chaque PR vers `main` : le titre suit Conventional Commits (seul contrôle lancé par une PR, en lecture seule) |
@@ -44,7 +44,7 @@ Dans l'onglet *Actions*, chaque pipeline apparaît avec son graphe. **Tout est l
 | Vérification | Ce qu'elle fait |
 | --- | --- |
 | **Backend** | `uv sync --frozen --no-build`, ruff (erreurs), ruff format (mise en forme), ty (types), pytest (tests, données en mémoire) |
-| **Backend sur PostgreSQL** | une base PostgreSQL de test (`dhi.io/postgres:18.6-alpine3.24` ; le schéma `suivi_delivery` y est créé par `psql`, comme le fait l'image du projet), sa structure appliquée par l'image Liquibase du projet (module `liquibase/`), puis **les mêmes tests** sur cette base (voir [postgresql.md § 7](postgresql.md#7-les-tests)). Un changement Liquibase cassé, ou une différence entre la mémoire et la base, se voit tout de suite |
+| **Backend sur SQLite** | **les mêmes tests**, sur un vrai fichier SQLite (`TESTS_DB_FILE`, dans le dossier temporaire de la machine), dont l'API crée elle-même la structure (voir [sqlite.md](sqlite.md#les-tests)). Une erreur dans `app/sql/`, ou une différence entre la mémoire et la base, se voit tout de suite |
 | **Frontend** | `npm ci --ignore-scripts`, `npm run typecheck`, `npm run build` |
 | **Chart Helm** | **chart-verifier de Red Hat**, profil `developer-console` (voir ci-dessous) |
 | **Version unique** | `cicd/check_versions.py` : le même numéro partout (`pyproject.toml`, `uv.lock`, `package.json`, `package-lock.json`, `Chart.yaml`) |
@@ -64,7 +64,7 @@ Sur Docker Hub, l'analyse continue de Docker Scout (un seul dépôt en offre gra
 docker scout quickview ghcr.io/florent-coulon-deville/suivi-delivery-backend:0.6.0
 ```
 
-Premier relevé (0.5.0, Intel/AMD) : backend 0 critique / 7 élevées, frontend 2 / 1, liquibase 0 / 2, keycloak 3 / 8, postgres 0 / 1, note C partout. Une fois ces chiffres suivis quelque temps, on pourra décider de faire échouer le pipeline sur les failles **critiques corrigeables**.
+Premier relevé (0.5.0, Intel/AMD, version complète) : backend 0 critique / 7 élevées, frontend 2 / 1, note C. Une fois ces chiffres suivis quelque temps, on pourra décider de faire échouer le pipeline sur les failles **critiques corrigeables**.
 
 **Backend (uv) : `--frozen --no-build` sur chaque commande uv** (`uv sync` comme `uv run`), exigé par SonarCloud.
 
@@ -135,7 +135,7 @@ docker run --rm -v "$PWD/helm/suivi-delivery:/charts/suivi-delivery:ro" quay.io/
 
 - **Droits minimaux.** GitHub : `permissions: contents: read`, la CI ne peut que lire le code ; `persist-credentials: false`, le jeton n'est pas gardé après la récupération du code.
 - **Deux secrets à créer sur GitHub** (Settings → Secrets and variables → Actions) : `DHI_USERNAME` (identifiant Docker Hub) et `DHI_TOKEN` (jeton d'accès personnel Docker, droits **Read, Write, Delete**). Ils servent à télécharger les images de base durcies (`dhi.io`), et, à chaque version, à **publier sur Docker Hub** les images et le chart (d'où le droit d'écrire) ; `docker login` s'en sert directement, aucune action tierce ne les voit. Les PR venant d'un fork n'y ont pas accès : leur fabrication d'images échoue.
-- **Connexion à dhi.io tolérante aux coupures** (action du dépôt `.github/actions/connexion-dhi`, utilisée par `_tests-backend.yml` et `_images.yml`) : avant chaque essai, la CI vérifie que dhi.io répond (code 401 attendu, avec le temps de réponse, écrits dans le journal), puis se connecte ; jusqu'à 5 essais, avec des pauses de 30, 60, 90 et 120 s. Le journal distingue ainsi « dhi.io ne répond pas » (panne chez Docker, réessayer plus tard : *Re-run failed jobs*) de « jeton refusé » (secret à refaire). L'image de la base de test du job PostgreSQL (`services:`) est téléchargée par GitHub lui-même, sans nouvel essai possible.
+- **Connexion à dhi.io tolérante aux coupures** (action du dépôt `.github/actions/connexion-dhi`, utilisée par `_images.yml`) : avant chaque essai, la CI vérifie que dhi.io répond (code 401 attendu, avec le temps de réponse, écrits dans le journal), puis se connecte ; jusqu'à 5 essais, avec des pauses de 30, 60, 90 et 120 s. Le journal distingue ainsi « dhi.io ne répond pas » (panne chez Docker, réessayer plus tard : *Re-run failed jobs*) de « jeton refusé » (secret à refaire).
 - **Fabrication des images réessayée** (`_images.yml`) : dhi.io peut aussi ne pas répondre pendant la fabrication, quand BuildKit lit les images de base (« DeadlineExceeded »). L'étape de fabrication est donc écrite trois fois : l'essai 2 (après 60 s) ne se lance que si l'essai 1 a échoué, l'essai 3 (après 120 s) que si l'essai 2 a échoué. Un essai raté apparaît en orange dans le journal, sans faire échouer la tâche ; seul l'échec du troisième la fait échouer. Un Dockerfile vraiment cassé échoue donc trois fois (quelques minutes de plus). Durée maximale de ces tâches : 40 minutes.
 - La publication utilise le jeton fourni automatiquement à chaque exécution (`GITHUB_TOKEN`, avec le droit `packages: write` pour les seuls jobs d'images). Il expire à la fin de l'exécution, et n'est **confié à aucune action tierce** : c'est `docker login` qui s'en sert, directement.
 - **Images de version publiées seulement à la création d'une version** (fusion de la PR de version de release-please sur `main`), ou à la main pour une étiquette existante. Les snapshots sont publiés au push d'une branche du dépôt ; jamais depuis une PR venant d'un fork (pas de secrets, pas de droit d'écriture).
@@ -159,8 +159,8 @@ OpenShift ne fabrique pas les images : il les télécharge dans un **registre d'
 
 | Registre | Images | Chart Helm |
 | --- | --- | --- |
-| GitHub Container Registry | `ghcr.io/florent-coulon-deville/suivi-delivery-backend:<version>`, `…-frontend:<version>`, `…-liquibase:<version>`, `…-keycloak:<version>`, `…-postgres:<version>` (et les snapshots) | pas publié |
-| Docker Hub (**un seul dépôt public**, `florentcoulon/suivi-delivery`, compte `DHI_USERNAME`) | `docker.io/florentcoulon/suivi-delivery:backend-<version>`, `…:frontend-<version>`, `…:liquibase-<version>`, `…:keycloak-<version>`, `…:postgres-<version>` (versions seulement) | le même dépôt, étiquette `<version>` : `oci://registry-1.docker.io/florentcoulon/suivi-delivery` |
+| GitHub Container Registry | `ghcr.io/florent-coulon-deville/suivi-delivery-backend:<version>`, `…-frontend:<version>` (et les snapshots) | pas publié |
+| Docker Hub (**un seul dépôt public**, `florentcoulon/suivi-delivery`, compte `DHI_USERNAME`) | `docker.io/florentcoulon/suivi-delivery:backend-<version>`, `…:frontend-<version>` (versions seulement) | le même dépôt, étiquette `<version>` : `oci://registry-1.docker.io/florentcoulon/suivi-delivery` |
 
 ### Sortir une version : release-please
 
@@ -188,7 +188,7 @@ Cette PR attend : on peut fusionner plusieurs PR, elle se met à jour à chaque 
 **3. Sortir la version = fusionner la PR de version.** release-please pose alors l'étiquette `vX.Y.Z` et crée la *Release* GitHub (avec le journal). Puis, dans le même pipeline `release.yml` :
     - **vérifier la version** : l'étiquette est égale à la version unique, sinon arrêt ; **refus de republier une version existante** (une image publiée ne change jamais : pour corriger, on sort une nouvelle version, un `fix:`) ;
     - **refaire les vérifications** (backend, frontend, chart Helm) sur le commit de l'étiquette : une version publiée a forcément été testée ;
-    - **fabriquer et publier les cinq images** (backend, frontend, Liquibase, Keycloak, PostgreSQL) à partir d'images de base à jour, **pour deux types de processeurs** (voir ci-dessous). **Jamais d'étiquette `latest`** : on sait toujours quelle version tourne.
+    - **fabriquer et publier les deux images** (backend, frontend) à partir d'images de base à jour, **pour deux types de processeurs** (voir ci-dessous). **Jamais d'étiquette `latest`** : on sait toujours quelle version tourne.
 
 Publication ratée (panne de dhi.io…) : onglet *Actions* → « Release » → *Run workflow*, en donnant l'étiquette (`v0.5.0`) : les vérifications et la publication reprennent pour elle.
 
@@ -199,15 +199,15 @@ Publication ratée (panne de dhi.io…) : onglet *Actions* → « Release » →
     - **Forcer un numéro** (par exemple passer en `1.0.0`) : un commit dont le message contient la ligne `Release-As: 1.0.0`.
     - Point de départ : `0.4.3` dans `.release-please-manifest.json`, et `bootstrap-sha` (le premier commit du dépôt) dans `release-please-config.json` : les commits d'avant ne sont pas relus.
 
-**Docker Hub** (job « Docker Hub » de `release.yml`, après les images) : **un seul dépôt pour toute l'application**, `florentcoulon/suivi-delivery` (choix de l'utilisateur : une application, plusieurs images ; et Docker Scout gratuit ne suit qu'un dépôt). Les cinq images de la version y sont **recopiées** depuis ghcr.io sous `<partie>-<version>` (`backend-0.7.0`…) (`docker buildx imagetools create`, avec leurs deux processeurs : rien n'est refabriqué), puis le chart est emballé (`helm package`) et publié en OCI (`helm push`) sous `<version>` : Helm range toujours un chart dans le dépôt qui porte son nom. Compte et jeton de dhi.io. Dépôt public. Les snapshots ne vont pas sur Docker Hub. Le chart prend ses images sur ghcr.io (`images.registry`) : celles de Docker Hub servent au `docker pull`, pas au chart. La 0.6.0 a été publiée avec l'ancien rangement, un dépôt par image (`florentcoulon/suivi-delivery-backend:0.6.0`…).
+**Docker Hub** (job « Docker Hub » de `release.yml`, après les images) : **un seul dépôt pour toute l'application**, `florentcoulon/suivi-delivery` (choix de l'utilisateur : une application, plusieurs images ; et Docker Scout gratuit ne suit qu'un dépôt). Les deux images de la version y sont **recopiées** depuis ghcr.io sous `<partie>-<version>` (`backend-0.7.0`…) (`docker buildx imagetools create`, avec leurs deux processeurs : rien n'est refabriqué), puis le chart est emballé (`helm package`) et publié en OCI (`helm push`) sous `<version>` : Helm range toujours un chart dans le dépôt qui porte son nom. Compte et jeton de dhi.io. Dépôt public. Les snapshots ne vont pas sur Docker Hub. Le chart prend ses images sur ghcr.io (`images.registry`) : celles de Docker Hub servent au `docker pull`, pas au chart. La 0.6.0 a été publiée avec l'ancien rangement, un dépôt par image (`florentcoulon/suivi-delivery-backend:0.6.0`…).
 
 **Le chart Helm n'est pas publié sur GitHub** (décision de l'utilisateur) : il reste vérifié à chaque push (chart-verifier, § 2), et s'installe depuis Docker Hub ou depuis le dépôt Git, à l'étiquette de la version. Les versions déjà publiées dans `oci://ghcr.io/florent-coulon-deville/charts/suivi-delivery` y restent. Le paquet ne contient que les modèles de réglages (`.helmignore` écarte `values-secret*.yaml` et `values-crc.yaml`).
 
 ### Snapshots : les images de chaque branche, à chaque push
 
-Entre deux versions, on veut pouvoir essayer le travail en cours sur un cluster. **À chaque push, sur n'importe quelle branche** (`main` comprise), le pipeline `snapshot.yml`, **une fois ses vérifications vertes**, fabrique les cinq images et les publie dans **ghcr.io seulement** (jamais sur Docker Hub), sous **une étiquette par branche, écrasée à chaque push** :
+Entre deux versions, on veut pouvoir essayer le travail en cours sur un cluster. **À chaque push, sur n'importe quelle branche** (`main` comprise), le pipeline `snapshot.yml`, **une fois ses vérifications vertes**, fabrique les deux images et les publie dans **ghcr.io seulement** (jamais sur Docker Hub), sous **une étiquette par branche, écrasée à chaque push** :
 
-| Branche | Étiquette des cinq images |
+| Branche | Étiquette des deux images |
 | --- | --- |
 | `main` | `main-snapshot` |
 | `feat/export-excel` | `feat-export-excel-snapshot` |
@@ -220,13 +220,12 @@ Entre deux versions, on veut pouvoir essayer le travail en cours sur un cluster.
 - Deux pushes rapprochés sur la même branche : le premier est annulé, seul le dernier est publié.
 - **À la demande** : onglet *Actions* → « Snapshot » → *Run workflow*, choisir la branche ; case « Tout refabriquer, sans cache » pour recréer entièrement les images (images de base retéléchargées). Le bouton n'apparaît qu'une fois `snapshot.yml` sur `main` ; avant : `gh workflow run snapshot.yml --ref <branche> -f no_cache=true`.
 
-**Installer un snapshot** avec le chart : donner l'étiquette des cinq images, et `pullPolicy: Always`, sinon un nœud qui a déjà l'ancienne image sous cette étiquette la garde :
+**Installer un snapshot** avec le chart : donner l'étiquette des deux images, et `pullPolicy: Always`, sinon un nœud qui a déjà l'ancienne image sous cette étiquette la garde :
 
 ```bash
 TAG=feat-export-excel-snapshot
 helm upgrade --install suivi-delivery helm/suivi-delivery -f values-secret.yaml \
-  --set images.backend.tag=$TAG --set images.frontend.tag=$TAG --set images.liquibase.tag=$TAG \
-  --set images.keycloak.tag=$TAG --set images.postgresql.tag=$TAG --set images.pullPolicy=Always
+  --set images.backend.tag=$TAG --set images.frontend.tag=$TAG --set images.pullPolicy=Always
 ```
 
 Pour qu'un Deployment reprenne une image écrasée, le relancer : `kubectl rollout restart deployment/<nom>`.
@@ -241,8 +240,8 @@ Le pipeline release fabrique donc chaque image **deux fois, sur une vraie machin
 
 | Étape (job) | Ce qu'elle publie |
 | --- | --- |
-| `build` de `_images.yml` (10 en parallèle : 5 images × 2 processeurs) | `suivi-delivery-backend:<version>-amd64`, `…:<version>-arm64`, idem pour le frontend, Liquibase, Keycloak et PostgreSQL |
-| `merge` de `_images.yml` (`docker buildx imagetools create`, commande de Docker) | `suivi-delivery-backend:<version>`, `suivi-delivery-frontend:<version>`, `suivi-delivery-liquibase:<version>`, `suivi-delivery-keycloak:<version>` et `suivi-delivery-postgres:<version>`, qui renvoient chacune vers les deux précédentes |
+| `build` de `_images.yml` (4 en parallèle : 2 images × 2 processeurs) | `suivi-delivery-backend:<version>-amd64`, `…:<version>-arm64`, idem pour le frontend |
+| `merge` de `_images.yml` (`docker buildx imagetools create`, commande de Docker) | `suivi-delivery-backend:<version>` et `suivi-delivery-frontend:<version>`, qui renvoient chacune vers les deux précédentes |
 
 On utilise toujours `<version>` (sans suffixe) : `docker pull`, comme OpenShift, y prend tout seul la version qui convient à la machine. Les étiquettes `-amd64` et `-arm64` ne servent qu'à l'assemblage.
 

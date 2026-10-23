@@ -13,9 +13,6 @@ requires-python = ">=3.14"
 dependencies = [
     "fastapi==0.143.0",   # le framework web : routes, validation, Swagger
     "openpyxl==3.1.5",    # lit et écrit les fichiers Excel (export et import de la configuration)
-    "psycopg-pool==3.3.3",    # garde des connexions PostgreSQL ouvertes, prêtes à servir
-    "psycopg[binary]==3.3.6", # le connecteur PostgreSQL (binary : livré avec la bibliothèque libpq)
-    "pyjwt[crypto]==2.15.1",  # vérifie les jetons d'accès de Keycloak (JWT signés RSA : crypto)
     "uvicorn==0.54.0",    # le serveur qui fait tourner l'application
 ]
 

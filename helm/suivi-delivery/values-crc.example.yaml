@@ -7,10 +7,8 @@
 #     --kube-context crc-admin -n suivi-delivery --create-namespace \
 #     -f helm/suivi-delivery/values-secret.yaml -f helm/suivi-delivery/values-crc.yaml --wait --timeout 5m
 #
-# ou : ./deployment/k8s-deploy.zsh --contexte crc-admin --valeurs helm/suivi-delivery/values-crc.yaml
+# ou : ./deployment/k8s-deploy.zsh --context crc-admin --values helm/suivi-delivery/values-crc.yaml
 
 application:
   instanceName: crc            # bandeau affiché en haut de l'interface
   instanceColor: "#1971c2"  # bleu : un essai, ni recette ni prod
-  # Adresse de la Route choisie par OpenShift (<route>-<espace>.apps-crc.testing) : Keycloak y est servi sous /auth.
-  frontendUrl: https://suivi-delivery-suivi-delivery.apps-crc.testing

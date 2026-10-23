@@ -3,10 +3,9 @@
 // dans le navigateur arrive ici, puis part vers l'API (PATCH /api/configuration), qui fait tout le
 // travail. Le navigateur ne parle jamais à l'API.
 //
-// Une Server Action est joignable par quiconque atteint le site : on revérifie le rôle et le fichier
-// (présence, taille) ; l'API, elle, revérifie le jeton, le rôle et le contenu.
+// Une Server Action est joignable par quiconque atteint le site : on revérifie le fichier
+// (présence, taille) ; l'API, elle, revérifie le contenu.
 import { sendFile } from "@/lib/api";
-import { isAdmin, readSession } from "@/lib/session";
 import type { ImportReport } from "@/lib/types";
 
 const TYPE_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -26,9 +25,6 @@ export async function importFile(data: FormData): Promise<ImportResult> {
 }
 
 async function send(data: FormData, dryRun: boolean): Promise<ImportResult> {
-  if (!isAdmin((await readSession())?.role)) {
-    return { ok: false, message: "Droits insuffisants : rôle ADMIN requis" };
-  }
   const file = data.get("file");
   if (!(file instanceof File) || file.size === 0) return { ok: false, message: "Choisissez un fichier Excel" };
   if (file.size > MAX_SIZE) return { ok: false, message: "Fichier trop gros (10 Mo au plus)" };

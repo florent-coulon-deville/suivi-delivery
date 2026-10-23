@@ -39,36 +39,6 @@ class ParameterType(StrEnum):
     APPLICATION = "APPLICATION"
 
 
-class AccountKind(StrEnum):
-    """Qui utilise un compte (comptes gérés dans Keycloak, voir app/directory.py)."""
-
-    PERSON = "PERSON"  # se connecte avec un mot de passe, sur la page de connexion
-    PROGRAM = "PROGRAM"  # script, outil de déploiement… : se connecte avec une clé (client credentials)
-
-
-class Role(StrEnum):
-    """Ce qu'un compte a le droit de faire ; chaque rôle comprend les droits du précédent."""
-
-    VIEWER = "VIEWER"  # lire les données
-    EDITOR = "EDITOR"  # lire, et saisir les livraisons (versions, paramètres, installations)
-    ADMIN = "ADMIN"  # tout : aussi la structure (paramétrage général) et les comptes
-
-
-class Theme(StrEnum):
-    """Thème de couleurs de l'interface, choisi par chaque personne (« Mon compte » → Apparence)."""
-
-    AUTO = "AUTO"  # comme le réglage de l'ordinateur
-    LIGHT = "LIGHT"
-    DARK = "DARK"
-
-
-class AuthorKind(StrEnum):
-    """Qui a fait une saisie notée au journal."""
-
-    PERSON = "PERSON"
-    PROGRAM = "PROGRAM"
-
-
 class AuditAction(StrEnum):
     """Ce qu'une saisie a fait à un objet (journal des actions, app/audit_log.py)."""
 
@@ -515,101 +485,16 @@ class Installation(BaseModel):
     date: datetime
 
 
-# --- Comptes (gérés dans Keycloak, voir app/directory.py) ---------------------
-
-Password = Annotated[
-    str,
-    Field(
-        min_length=12,
-        max_length=128,
-        description="12 caractères au moins, différent de l'identifiant.",
-        examples=["a-strong-password"],
-    ),
-]
-
-
-class AccountCreation(Entry):
-    identifier: Code = Field(examples=["paul"])
-    name: Label = Field(examples=["Paul Martin"])
-    kind: AccountKind
-    role: Role
-    password: Password | None = Field(
-        default=None,
-        description="PERSON : mot de passe PROVISOIRE, obligatoire (elle en choisit un nouveau à sa première "
-        "connexion). Interdit pour un PROGRAM (sa clé est générée).",
-    )
-
-    @model_validator(mode="after")
-    def secret_according_to_kind(self) -> Self:
-        if self.kind == AccountKind.PERSON and self.password is None:
-            raise ValueError("password est obligatoire pour une PERSON")
-        if self.kind == AccountKind.PROGRAM and self.password is not None:
-            raise ValueError("un PROGRAM n'a pas de mot de passe : sa clé est générée par l'outil")
-        if self.password is not None and self.password.lower() == self.identifier:
-            raise ValueError("le mot de passe doit être différent de l'identifiant")
-        return self
-
-
-class AccountUpdate(Update):
-    name: Label | None = None
-    role: Role | None = None
-    active: bool | None = Field(default=None, description="Faux : le compte ne peut plus se connecter.")
-    password: Password | None = Field(
-        default=None,
-        description="Nouveau mot de passe PROVISOIRE (PERSON seulement) : à changer à la prochaine connexion.",
-    )
-
-
-class Account(BaseModel):
-    """Un compte, tel que l'API le montre : jamais de mot de passe ni de clé."""
-
-    id: str = Field(description="Identifiant du compte dans Keycloak.")
-    identifier: str
-    name: str
-    kind: AccountKind
-    role: Role | None = Field(description="Aucun : le compte ne peut rien faire dans l'outil.")
-    active: bool
-
-
-class CreatedAccount(Account):
-    key: str | None = Field(
-        default=None, description="Clé d'un PROGRAM : affichée UNE SEULE FOIS, à noter tout de suite."
-    )
-
-
-class NewKey(BaseModel):
-    key: str = Field(description="Nouvelle clé du PROGRAM : affichée UNE SEULE FOIS. L'ancienne ne marche plus.")
-
-
-class Me(BaseModel):
-    """Le compte connecté (GET /api/me), tel que son jeton le décrit, et ses préférences."""
-
-    identifier: str = Field(description="Identifiant de connexion (PERSON), ou du programme.")
-    name: str
-    kind: AccountKind
-    role: Role | None
-    theme: Theme = Field(default=Theme.AUTO, description="Thème de couleurs de l'interface.")
-
-
-class MyPreferences(Update):
-    """Corps de PATCH /api/me : les préférences que chacun règle lui-même."""
-
-    theme: Theme | None = None
-
-
 # --- Journal des actions (voir app/audit_log.py) ------------------------------
 
 
 class AuditEntry(BaseModel):
-    """Une saisie acceptée : qui, quand, sur quel objet, et l'objet avant / après."""
+    """Une saisie acceptée : quand, sur quel objet, et l'objet avant / après."""
 
     id: int
     date: datetime
-    author_id: str | None = Field(description="Identifiant Keycloak de l'auteur (il a pu être supprimé depuis).")
-    author: str = Field(description="Identifiant de connexion de l'auteur (ou du programme), au moment de la saisie.")
-    author_kind: AuthorKind
-    object: str = Field(examples=["installations"], description="Nature de l'objet : le nom de sa table (ou comptes).")
-    object_id: str = Field(description="Identifiant de l'objet (un nombre, ou l'identifiant Keycloak d'un compte).")
+    object: str = Field(examples=["installations"], description="Nature de l'objet : le nom de sa table.")
+    object_id: str = Field(description="Identifiant de l'objet.")
     action: AuditAction
     before: dict | None = Field(description="L'objet avant la saisie (absent pour une création).")
     after: dict | None = Field(description="L'objet après la saisie (absent pour une suppression).")

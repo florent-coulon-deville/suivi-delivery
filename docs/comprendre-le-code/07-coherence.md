@@ -25,7 +25,7 @@ def apply_if_consistent[T](storage: Storage, change: Callable[[Storage], T]) -> 
     return result                      # c'est bon : le changement est gardé
 ```
 
-L'essai dépend du stockage ([page 3](03-stockage.md)) : en mémoire, il se fait sur une copie des données ; dans PostgreSQL, dans un « point de sauvegarde » de la transaction, sans rien copier.
+L'essai dépend du stockage ([page 3](03-stockage.md)) : en mémoire, il se fait sur une copie des données ; dans SQLite, dans un « point de sauvegarde » de la transaction, sans rien copier.
 
 Côté route, ça tient en une ligne :
 
@@ -33,7 +33,7 @@ Côté route, ça tient en une ligne :
 return apply_if_consistent(storage, lambda s: s.clusters.update(cluster_id, changes))
 ```
 
-La `lambda s: …` est le changement à faire, écrit comme une petite fonction qui reçoit **le stockage de l'essai** : en mémoire, c'est la copie ; dans PostgreSQL, le stockage lui-même.
+La `lambda s: …` est le changement à faire, écrit comme une petite fonction qui reçoit **le stockage de l'essai** : en mémoire, c'est la copie ; dans SQLite, le stockage lui-même.
 
 **Avantage** : une nouvelle règle s'ajoute dans `inconsistencies` (une petite fonction de plus, appelée par `inconsistencies`), et elle est automatiquement vérifiée par toutes les routes qui passent par `apply_if_consistent`.
 
@@ -81,7 +81,7 @@ Résultat : 1.4 < 1.10 < 2.0, 1.4 = 1.4.0, et 2.3.0-SNAPSHOT < 2.3.0.
 
 ## Deux saisies en même temps
 
-Avec PostgreSQL, plusieurs exemplaires de l'API peuvent tourner ensemble. Si deux saisies passaient en même temps, chacune pourrait être cohérente seule, mais pas les deux réunies. Pour l'éviter, une requête qui modifie prend un verrou de la base avant de commencer : les écritures passent **une à la fois**, et chaque contrôle voit des données à jour (voir [le stockage](03-stockage.md)).
+Si deux saisies passaient en même temps, chacune pourrait être cohérente seule, mais pas les deux réunies. Pour l'éviter, chaque requête prend un verrou avant de commencer : les requêtes passent **une à la fois**, et chaque contrôle voit des données à jour (voir [le stockage](03-stockage.md)).
 
 ## La limite connue
 

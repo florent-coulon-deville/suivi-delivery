@@ -20,12 +20,9 @@ Tout ce qui change d'une installation à l'autre est lu dans des **variables d'e
 | `APP_PORT` | port d'écoute | `8000` |
 | `APP_LOG_LEVEL` | détail des journaux | `info` |
 | `APP_DOCS` | Swagger visible (`oui` / `non`) | `oui` |
-| `APP_DB_HOST`, `APP_DB_PORT`, `APP_DB_NAME`, `APP_DB_SCHEMA`, `APP_DB_USER`, `APP_DB_PASSWORD` | la base PostgreSQL (et le schéma de nos tables) | sans `APP_DB_HOST` : données en mémoire |
-| `APP_KEYCLOAK_URL`, `APP_KEYCLOAK_REALM` | Keycloak (adresse interne), son domaine | sans `APP_KEYCLOAK_URL` : aucun jeton accepté |
-| `APP_KEYCLOAK_CLIENT_SECRET` | clé du client de l'API dans Keycloak (écran Comptes) | aucune : écran Comptes indisponible |
-| `APP_FRONTEND_URL` | adresse publique de l'interface, sous laquelle Keycloak est servi (émetteur des jetons) | `http://localhost:8080` |
+| `APP_DB_FILE` | le fichier de la base SQLite (créé s'il n'existe pas) | sans lui : données en mémoire |
 
-`read_settings()` renvoie un objet `Settings` qui contient ces valeurs ; celles de la base sont regroupées dans `settings.base` (un `DatabaseSettings`, ou `None` sans `APP_DB_HOST`), celles de la sécurité dans `settings.security` (un `SecuritySettings`). Les secrets ne sont jamais affichés : ni quand on affiche les réglages (`repr=False`), ni dans les messages d'erreur. Une valeur impossible lève `InvalidSetting` : le démarrage s'arrête avec un message clair. Détails et exemples : [docs/deploiement.md](../deploiement.md).
+`read_settings()` renvoie un objet `Settings` qui contient ces valeurs ; le fichier de la base est dans `settings.base` (un `DatabaseSettings`, ou `None` sans `APP_DB_FILE`). Une valeur impossible lève `InvalidSetting` : le démarrage s'arrête avec un message clair. Détails et exemples : [docs/deploiement.md](../deploiement.md).
 
 ## La variable `app`
 
@@ -33,15 +30,15 @@ Tout en bas de `main.py` :
 
 ```python
 settings = read_settings()
-app = create_application(settings.base, docs=settings.docs, security=settings.security)
+app = create_application(settings.base, docs=settings.docs)
 ```
 
-L'application est créée avec la base, le choix d'afficher ou non Swagger et les réglages de sécurité, tous venus des réglages.
+L'application est créée avec la base et le choix d'afficher ou non Swagger, venus des réglages.
 
 ## `create_application()`, pas à pas
 
 ```python
-def create_application(base: DatabaseSettings | None = None, docs: bool = True, ...) -> FastAPI:
+def create_application(base: DatabaseSettings | None = None, docs: bool = True) -> FastAPI:
     # 1. L'application vide, avec la documentation Swagger sous /api/docs (sauf si docs=False)
     app = FastAPI(title="Suivi de la delivery", version=VERSION, openapi_tags=TAGS,
                   docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)
@@ -61,7 +58,7 @@ def create_application(base: DatabaseSettings | None = None, docs: bool = True, 
     app.add_middleware(RequestTransaction)          # une transaction par requête (page 3)
     app.add_middleware(HttpMethods, routes=routes)
     app.add_exception_handler(RequestValidationError, invalid_request)
-    app.add_exception_handler(psycopg.errors.IntegrityError, database_rejection)  # 409, page 3
+    app.add_exception_handler(sqlite3.IntegrityError, database_rejection)  # 409, page 3
     return app
 ```
 
@@ -80,26 +77,21 @@ Au début de `create_application`, une petite fonction dit quoi faire au démarr
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         if base is not None:
-            storage = PostgresStorage(base)
-            storage.open()                        # démarrage : se connecte, vérifie les tables
+            storage = SqliteStorage(base)
+            storage.open()                        # démarrage : ouvre le fichier, crée ou complète les tables
             app.state.storage = storage
         app.state.started = True                    # /startupz et /readyz répondent « prêt »
         yield                                        # … l'API tourne …
-        app.state.storage.close()                  # arrêt : ferme les connexions
+        app.state.storage.close()                  # arrêt : ferme le fichier
 ```
 
 Elle est donnée à FastAPI (`FastAPI(lifespan=lifespan, …)`). Tout ce qui est avant `yield` s'exécute au démarrage, tout ce qui est après, à l'arrêt.
 
-Pourquoi ne pas se connecter à la base tout de suite ? Parce que les tests importent `main.py`, et ils se connecteraient à chaque fois. Ici, la connexion n'est ouverte que lorsque le serveur démarre vraiment.
+Pourquoi ne pas ouvrir la base tout de suite ? Parce que les tests importent `main.py`, et ils l'ouvriraient à chaque fois. Ici, le fichier n'est ouvert que lorsque le serveur démarre vraiment.
 
-Si la base ne répond pas, ou si les tables n'existent pas (Liquibase pas encore lancé), `open()` arrête le démarrage avec un message clair.
+Au démarrage, `open()` applique la structure qui manque (les fichiers de `app/sql/`, voir [sqlite.md](../sqlite.md)). Si le fichier ne peut pas être ouvert, ou s'il a été préparé par une version plus récente de l'API, le démarrage s'arrête avec un message clair.
 
-`create_application` prépare aussi la sécurité, sans contacter Keycloak tout de suite :
-
-- le **vérificateur** des jetons (`Verificateur.pour(securite)`), qui lira les clés de Keycloak au premier jeton reçu ;
-- l'**annuaire** des comptes (`KeycloakDirectory`), si la clé du client est donnée.
-
-L'API ne garde aucun mot de passe : le compte `admin` est créé par Keycloak. Voir [la sécurité](11-securite.md).
+Pas de connexion ni de rôles dans cette version : aucune route ne demande de jeton.
 
 ## Pourquoi une fonction ?
 

@@ -39,7 +39,7 @@
 #                                   images <registre>/suivi-delivery-*:<version>, qui doivent
 #                                   donc être publiées (par la CI, à la sortie de la version).
 # Les deux : helm upgrade --install, puis « helm test ». Si helm/suivi-delivery/values-secret.yaml
-# existe, il est utilisé (sinon : mots de passe et clé générés à la première installation).
+# existe (accès à un registre privé), il est utilisé.
 #
 # Si Windows refuse de lancer le script (« l'exécution de scripts est désactivée ») :
 #   pwsh -ExecutionPolicy Bypass -File .\deployment\k8s-deploy.ps1
@@ -56,7 +56,7 @@ $REGISTRY = ""                      # registre des images publiées (--registry 
 $LOCAL_PORT = 8080                  # pour « kubectl port-forward » (affiché à la fin)
 $ENGINE = "docker"                  # fabrique les images et fait tourner kind : docker, ou podman (--podman)
 # Les images du projet : nom → dossier de son Dockerfile (image « suivi-delivery-<nom> »).
-$FOLDERS = [ordered]@{ backend = "backend"; frontend = "frontend"; liquibase = "liquibase"; keycloak = "keycloak"; postgres = "postgres" }
+$FOLDERS = [ordered]@{ backend = "backend"; frontend = "frontend" }
 
 function step($message) { Write-Host "`n==> $message" -ForegroundColor Blue }
 function ok($message) { Write-Host "✔ $message" -ForegroundColor Green }
@@ -254,11 +254,11 @@ if (Test-Path "$CHART/values-secret.yaml") {
     $SECRETS = @("-f", "$CHART/values-secret.yaml")
     ok "Secrets lus dans $CHART/values-secret.yaml"
 } else {
-    info "Pas de $CHART/values-secret.yaml : mots de passe (admin, base, Keycloak) et clé du client de l'API générés"
+    info "Pas de $CHART/values-secret.yaml : pas de registre privé"
 }
 $INSTANCE = @()
-if ($KIND) { $INSTANCE = @("--set", "application.nomInstance=kind") }
-helm_context upgrade --install $INSTALLATION "./$CHART" -n $NAMESPACE --create-namespace @SECRETS @VALUES @IMAGES @INSTANCE --wait --timeout 10m  # Keycloak : long au premier démarrage
+if ($KIND) { $INSTANCE = @("--set", "application.instanceName=kind") }
+helm_context upgrade --install $INSTALLATION "./$CHART" -n $NAMESPACE --create-namespace @SECRETS @VALUES @IMAGES @INSTANCE --wait --timeout 5m
 if ($LASTEXITCODE -ne 0) { fail "L'installation du chart a échoué (voir ci-dessus ; kubectl --context $CONTEXT get pods -n $NAMESPACE)." }
 ok "Chart installé (installation « $INSTALLATION », espace de noms « $NAMESPACE »)"
 
@@ -277,11 +277,10 @@ if ($LASTEXITCODE -eq 0 -and $ROUTE) {
     Write-Host "                      puis http://localhost:$LOCAL_PORT"
 }
 # Windows n'a pas la commande base64 : le mot de passe est décodé par PowerShell.
-Write-Host "  Compte admin        mot de passe initial : [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((kubectl --context $CONTEXT get secret $INSTALLATION-application -n $NAMESPACE -o jsonpath='{.data.APP_ADMIN_PASSWORD}')))"
 Write-Host "  État des pods       kubectl --context $CONTEXT get pods -n $NAMESPACE"
 if ($KIND) {
     $provider = if ($ENGINE -eq "podman") { '$env:KIND_EXPERIMENTAL_PROVIDER = "podman" ; ' } else { "" }
     Write-Host "  Tout supprimer      ${provider}kind delete cluster --name $CLUSTER_KIND"
 } else {
-    Write-Host "  Désinstaller        helm --kube-context $CONTEXT uninstall $INSTALLATION -n $NAMESPACE   (la base et le Secret sont conservés)"
+    Write-Host "  Désinstaller        helm --kube-context $CONTEXT uninstall $INSTALLATION -n $NAMESPACE   (le disque des données est conservé)"
 }

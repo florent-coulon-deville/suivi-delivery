@@ -1,13 +1,8 @@
 // « Import » : recharger une configuration depuis le fichier Excel de l'export (mode fusion).
-// Réservé à l'ADMIN : pour les autres, ni la page ni son code ne partent vers le navigateur
-// (et l'API refuse, 403). Le formulaire (choix du fichier, aperçu, import) est dans ImportForm.
-import AccessDenied from "@/components/AccessDenied";
+// Le formulaire (choix du fichier, aperçu, import) est dans ImportForm.
 import ImportForm from "@/components/import/ImportForm";
-import { isAdmin, readSession } from "@/lib/session";
 
-export default async function Import() {
-  const session = await readSession();
-  if (!session || !isAdmin(session.role)) return <AccessDenied role="Administration" />;
+export default function Import() {
   return (
     <section className="main-card">
       <div className="card-header">
