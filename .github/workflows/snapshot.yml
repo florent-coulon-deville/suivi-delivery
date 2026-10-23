@@ -17,6 +17,15 @@ name: Snapshot des images
 on:
   push:
     branches: ["**"]
+  # Bouton « Run workflow » (onglet Actions) : snapshot d'une branche choisie, à la demande.
+  # GitHub n'affiche le bouton qu'une fois ce fichier sur main ; avant, en ligne de commande :
+  #   gh workflow run snapshot.yml --ref <branche> [-f no_cache=true]
+  workflow_dispatch:
+    inputs:
+      no_cache:
+        description: Tout refabriquer, sans cache (images de base retéléchargées)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -88,5 +97,9 @@ jobs:
             org.opencontainers.image.version=${{ needs.tag.outputs.tag }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.title=suivi-delivery-${{ matrix.part }}
+          # Case « sans cache » cochée : rien n'est réutilisé, et les images de base sont
+          # retéléchargées (sur un push, la case n'existe pas : cache utilisé).
+          no-cache: ${{ inputs.no_cache == true }}
+          pull: ${{ inputs.no_cache == true }}
           cache-from: type=gha,scope=${{ matrix.part }}
           cache-to: type=gha,scope=${{ matrix.part }},mode=max

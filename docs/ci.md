@@ -170,6 +170,7 @@ Entre deux versions, on veut pouvoir essayer le travail en cours sur un cluster.
 - **Intel/AMD seulement** (`amd64`) : OpenShift et les serveurs. Sur un Mac, kind fabrique ses images en local (`k8s-deploy.zsh`).
 - La vérification « Images Docker » (`ci-docker.yml`, fabrication sans publication sur les PR) est gardée pour l'instant (choix de l'utilisateur).
 - Deux pushes rapprochés sur la même branche : le premier est annulé, seul le dernier est publié.
+- **À la demande** : onglet *Actions* → « Snapshot des images » → *Run workflow*, choisir la branche ; case « Tout refabriquer, sans cache » pour recréer entièrement les images (images de base retéléchargées). Le bouton n'apparaît qu'une fois `snapshot.yml` sur `main` ; avant : `gh workflow run snapshot.yml --ref <branche> -f no_cache=true`.
 
 **Installer un snapshot** avec le chart : donner l'étiquette des cinq images, et `pullPolicy: Always`, sinon un nœud qui a déjà l'ancienne image sous cette étiquette la garde :
 
