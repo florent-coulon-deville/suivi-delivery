@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.0](https://github.com/florent-coulon-deville/suivi-delivery/compare/v0.5.0...v0.6.0) (2026-10-23)
+
+
+### Nouveautés
+
+* Add PR title validation workflow for Conventional Commits ([04b6046](https://github.com/florent-coulon-deville/suivi-delivery/commit/04b604668ac6781205b078f18a53076d8c539aa6))
+
+
+### Corrections
+
+* Update CI and deployment documentation to clarify Docker Hub publishing and instance settings ([e6c98ca](https://github.com/florent-coulon-deville/suivi-delivery/commit/e6c98caaa4457512a68dbe853934c225b30530f5))
+
 ## [0.5.0](https://github.com/florent-coulon-deville/suivi-delivery/compare/v0.4.3...v0.5.0) (2026-10-23)
 
 
