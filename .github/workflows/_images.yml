@@ -9,8 +9,8 @@
 #                    <version> : « docker pull » prend tout seul celle qui convient à la machine
 #
 # Chaque Dockerfile récupère lui-même ce dont il a besoin : rien à préparer avant. Les
-# images de base viennent de dhi.io (connexion réessayée en cas de coupure, et fabrication
-# réessayée jusqu'à 3 fois). Le cache de Docker ne refait que ce qui a changé : une image
+# images de base viennent de Docker Hub (images officielles de Python et Node.js, uv d'Astral ;
+# connexion réessayée en cas de coupure, et fabrication réessayée jusqu'à 3 fois). Le cache de Docker ne refait que ce qui a changé : une image
 # dont le dossier n'a pas bougé est « refabriquée » en quelques secondes.
 #
 # Une fois publiées, chaque image est passée à Docker Scout (failles connues, par gravité) :
@@ -97,13 +97,13 @@ jobs:
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: echo "$TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
-      - uses: ./.github/actions/connexion-dhi
+      - uses: ./.github/actions/connexion-docker-hub
         with:
           username: ${{ secrets.DHI_USERNAME }}
           token: ${{ secrets.DHI_TOKEN }}
-      # Fabrication essayée jusqu'à 3 fois (pauses de 60 puis 120 s) : dhi.io ne répond
-      # parfois pas aux machines GitHub pendant la lecture des images de base
-      # (« DeadlineExceeded », vu le 2026-10-23). GitHub ne sait pas répéter une étape :
+      # Fabrication essayée jusqu'à 3 fois (pauses de 60 puis 120 s) : un registre peut ne pas
+      # répondre aux machines GitHub pendant la lecture des images de base (« DeadlineExceeded »,
+      # vu avec dhi.io le 2026-10-23). GitHub ne sait pas répéter une étape :
       # elle est écrite trois fois, chaque essai ne se lançant que si le précédent a échoué.
       - name: Fabriquer et publier {{ matrix.part }} ({{ matrix.arch }}) (essai 1 sur 3)
         id: build1
@@ -130,7 +130,7 @@ jobs:
       - name: Pause avant l'essai 2
         if: steps.build1.outcome == 'failure'
         run: |
-          echo "::warning::Fabrication ratée (essai 1 sur 3, souvent dhi.io qui ne répond pas), nouvel essai dans 60 s."
+          echo "::warning::Fabrication ratée (essai 1 sur 3, souvent un registre qui ne répond pas), nouvel essai dans 60 s."
           sleep 60
       - name: Fabriquer et publier {{ matrix.part }} ({{ matrix.arch }}) (essai 2 sur 3)
         if: steps.build1.outcome == 'failure'
@@ -158,7 +158,7 @@ jobs:
       - name: Pause avant l'essai 3
         if: steps.build2.outcome == 'failure'
         run: |
-          echo "::warning::Fabrication ratée (essai 2 sur 3, souvent dhi.io qui ne répond pas), nouvel essai dans 120 s."
+          echo "::warning::Fabrication ratée (essai 2 sur 3, souvent un registre qui ne répond pas), nouvel essai dans 120 s."
           sleep 120
       - name: Fabriquer et publier {{ matrix.part }} ({{ matrix.arch }}) (essai 3 sur 3)
         if: steps.build2.outcome == 'failure'
@@ -210,11 +210,11 @@ jobs:
           docker buildx imagetools inspect "$IMAGE:$TAG"
 
   # Failles connues (CVE) de chaque image publiée, par Docker Scout (l'outil de Docker, image
-  # officielle, version figée) : il lit aussi les avis que Docker joint à ses images durcies
+  # officielle, version figée) : il lit aussi les avis que Docker joint à certaines images
   # (failles sans effet sur elles). RAPPORT SEULEMENT (choix de l'utilisateur) : un tableau par
   # image dans le résumé de l'exécution ; jamais d'échec du pipeline. Image lue directement dans
-  # le registre (« registry:// »), en Intel/AMD (le contenu est le même en ARM). Compte : celui
-  # de dhi.io (Docker Scout demande un compte Docker), passé par des variables d'environnement.
+  # le registre (« registry:// »), en Intel/AMD (le contenu est le même en ARM). Compte : le compte
+  # Docker du dépôt (Docker Scout en demande un), passé par des variables d'environnement.
   scout:
     name: Failles connues ${{ matrix.part }} (Docker Scout)
     needs: [prepare, build, merge]

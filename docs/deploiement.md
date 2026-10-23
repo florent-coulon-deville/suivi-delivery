@@ -102,23 +102,22 @@ Pour le déploiement, le site est construit (`npm run build`) en un **serveur au
 
 ## 6. Les images Docker
 
-**Règle : des Docker Hardened Images quand elles existent, sinon uniquement des images publiées par l'éditeur du logiciel.**
+**Règle : uniquement des images publiées par l'éditeur du logiciel**, sur Docker Hub : les images officielles de Python et de Node.js (*Docker Official Images*), et celle d'uv publiée par Astral (éditeur vérifié). Version légère : plus d'images durcies (`dhi.io`, décision de l'utilisateur). Les images contiennent donc un shell et un gestionnaire de paquets, et plus de failles connues que les images durcies (voir le rapport Docker Scout, [ci.md](ci.md)).
 
-Les **Docker Hardened Images** (registre `dhi.io`, publiées par Docker) sont réduites au strict nécessaire : pas de shell ni de gestionnaire de paquets dans l'image d'exécution, utilisateur non root, presque aucune faille connue, signées et accompagnées de la liste de leur contenu. Une variante `-dev` (avec shell) sert à l'étape de fabrication. Il faut **se connecter** avec un compte Docker (identifiant Docker Hub, jeton d'accès personnel en lecture seule comme mot de passe) : soit une fois à la main, `docker login dhi.io` (ou `podman login dhi.io`), soit en remplissant `DHI_USERNAME` et `DHI_TOKEN` dans `deployment/docker.env` : les scripts `docker-deploy` et `k8s-deploy` se connectent alors eux-mêmes avant de fabriquer les images (§ 7). Pour entrer dans un conteneur sans shell : `docker debug <conteneur>`.
+Aucune connexion n'est nécessaire pour télécharger ces images. Mais sans connexion, Docker Hub limite le nombre de téléchargements : on peut se connecter avec un compte Docker (identifiant Docker Hub, jeton d'accès personnel en lecture seule), soit une fois à la main (`docker login`), soit en remplissant `DHI_USERNAME` et `DHI_TOKEN` dans `deployment/docker.env` (noms gardés de l'époque des images durcies : c'est le même compte Docker) ; les scripts `docker-deploy` et `k8s-deploy` se connectent alors eux-mêmes avant de fabriquer les images (§ 7).
 
 | Usage | Image | Éditeur |
 | --- | --- | --- |
-| Backend (fabrication) | `dhi.io/python:3.14.8-debian13-dev` + uv recopié de `dhi.io/uv:0.13.4-debian13` | Docker Hardened Images |
-| Backend (exécution) | `dhi.io/python:3.14.8-debian13` | Docker Hardened Images |
-| Frontend (fabrication) | `dhi.io/node:26.12.1-alpine3.24-dev` | Docker Hardened Images |
-| Frontend (exécution) | `dhi.io/node:26.12.1-alpine3.24` | Docker Hardened Images |
+| Backend (fabrication et exécution) | `python:3.14.8-slim-trixie` | Docker Official Images |
+| Backend (fabrication seulement) | uv recopié de `astral/uv:0.13.4` | Astral |
+| Frontend (fabrication et exécution) | `node:26.12.1-alpine3.24` | Docker Official Images |
 
-Pour comprendre une étiquette : `dhi.io/python:3.14.8-debian13-dev` = Python **3.14.8** (version exacte, figée), système **Debian 13**, variante **dev** (avec shell, pour l'étape de fabrication ; sans `-dev` : l'image d'exécution). `dhi.io/node:26.12.1-alpine3.24` = Node **26.12.1**, système **Alpine 3.24** (plus petit que Debian).
+Pour comprendre une étiquette : `python:3.14.8-slim-trixie` = Python **3.14.8** (version exacte, figée), variante **slim** (réduite), système **Debian 13** (trixie). `node:26.12.1-alpine3.24` = Node **26.12.1**, système **Alpine 3.24** (plus petit que Debian). Dans les Dockerfile, les noms sont complets (`docker.io/library/python:…`) : Podman l'exige.
 
 Pour limiter les failles de sécurité :
 
 - **Seul le nécessaire va dans l'image finale.** Chaque Dockerfile a deux étapes : un « atelier » qui fabrique, jeté ensuite, puis l'image finale qui ne reçoit que le résultat.
-- **Ni uv ni shell** dans l'image finale du backend : uv installe les dépendances (versions et empreintes de `uv.lock`) à l'étape de fabrication, dans un environnement sans pip. Le pip de Debian reste dans l'image durcie (sans shell, impossible de l'en retirer), mais l'API ne s'en sert pas. L'image du frontend, elle, ne fait que copier le site construit avant.
+- **Pas d'uv** dans l'image finale du backend : uv installe les dépendances (versions et empreintes de `uv.lock`) à l'étape de fabrication, dans un environnement sans pip. Le pip du Python de l'image officielle y reste, mais l'API ne s'en sert pas. L'image finale du frontend ne garde que le site construit (ni sources ni `node_modules`).
 - **Rien n'est téléchargé ni mis à jour dans les images** (ni `apt-get upgrade`) : les failles de l'image de base (système, npm…) se corrigent **en changeant la version de l'image de base**.
 - **Next.js n'envoie pas de statistiques d'usage** (`NEXT_TELEMETRY_DISABLED=1`), et ne s'annonce pas dans les réponses (pas d'en-tête `X-Powered-By`).
 - **Reconstruire les images régulièrement**, au moins une fois par mois et à chaque alerte de sécurité.
@@ -163,7 +162,7 @@ Un `docker.env` d'une version précédente (avec PostgreSQL et Keycloak, sans `A
 Le script, dans l'ordre :
 
 1. **vérifie** Docker, les Dockerfile, `docker.env` (créé s'il manque) et que les ports du poste sont libres. Rien n'est encore modifié ;
-2. **fabrique les images** (après s'être connecté à `dhi.io` si `DHI_USERNAME` et `DHI_TOKEN` sont remplis). Une image qui ne se fabrique pas laisse les conteneurs en place ;
+2. **fabrique les images** (après s'être connecté à Docker Hub si `DHI_USERNAME` et `DHI_TOKEN` sont remplis). Une image qui ne se fabrique pas laisse les conteneurs en place ;
 3. **remplace les conteneurs** : supprime les anciens, crée le réseau `suivi-delivery-local` et le volume des données s'ils manquent (`--reset` efface d'abord le volume) ;
 4. **lance** l'API, puis l'interface, et attend qu'elles répondent (`/readyz`, `/health`) ;
 5. **affiche** les adresses.

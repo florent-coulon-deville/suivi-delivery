@@ -1,0 +1,39 @@
+# Connexion à Docker Hub, d'où viennent nos images de base (Python, Node.js, uv), écrite une seule
+# fois et utilisée par _images.yml (« uses: ./.github/actions/connexion-docker-hub »). Sans
+# connexion, Docker Hub limite le nombre de téléchargements, et les machines GitHub partagent
+# leurs adresses : on se connecte donc avec le compte Docker du dépôt (secrets DHI_USERNAME /
+# DHI_TOKEN, noms gardés de l'époque des images durcies dhi.io : c'est le même compte).
+# Action du dépôt lui-même (aucune action tierce) ; connexion faite par Docker, le jeton passé
+# par l'entrée standard.
+#
+# Jusqu'à 5 essais, pause de 30 s, 60 s, 90 s, 120 s entre deux : une coupure passagère ne fait
+# pas échouer la CI. Voir docs/ci.md.
+name: Connexion à Docker Hub
+description: docker login docker.io, réessayé en cas de coupure
+inputs:
+  username:
+    description: Compte Docker (secret DHI_USERNAME)
+    required: true
+  token:
+    description: Jeton d'accès personnel Docker (secret DHI_TOKEN)
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Connexion à Docker Hub
+      shell: bash
+      env:
+        DHI_USERNAME: ${{ inputs.username }}
+        DHI_TOKEN: ${{ inputs.token }}
+      run: |
+        for attempt in 1 2 3 4 5; do
+          if echo "$DHI_TOKEN" | docker login docker.io --username "$DHI_USERNAME" --password-stdin; then
+            exit 0
+          fi
+          if [[ $attempt -lt 5 ]]; then
+            echo "::warning::Connexion à Docker Hub ratée (essai $attempt sur 5), nouvel essai dans $((attempt * 30)) s."
+            sleep $((attempt * 30))
+          fi
+        done
+        echo "::error::Docker Hub refuse la connexion après 5 essais : vérifier les secrets DHI_USERNAME / DHI_TOKEN, ou réessayer plus tard (Re-run failed jobs)."
+        exit 1

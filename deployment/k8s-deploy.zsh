@@ -28,9 +28,9 @@
 #   kind (contexte « kind-<nom> »)  le cluster est créé s'il n'existe pas ; les images sont
 #                                   fabriquées sur le poste et chargées directement dans kind
 #                                   (pas de registre) : on essaie le code tel qu'il est.
-#                                   Connexion à dhi.io (images de base) : DHI_USERNAME et DHI_TOKEN
+#                                   Connexion à Docker Hub (images de base, facultative) : DHI_USERNAME et DHI_TOKEN
 #                                   de deployment/docker.env s'ils sont remplis, sinon un
-#                                   « docker login dhi.io » (ou podman) déjà fait.
+#                                   téléchargement sans connexion (limité par Docker Hub).
 #                                   Avec Docker (défaut) ou Podman (--podman) : un cluster kind
 #                                   créé avec l'un n'est pas vu par l'autre.
 #   tout autre cluster              le script demande confirmation ; le cluster télécharge les
@@ -55,21 +55,21 @@ ok()     { print -P "%F{green}✔ $1%f"; }
 info()   { print -P "%F{yellow}! $1%f"; }
 fail() { print -P "%F{red}✘ $1%f" >&2; exit 1; }
 
-# Connexion à dhi.io (images de base durcies) avant de fabriquer, avec DHI_USERNAME et DHI_TOKEN
+# Connexion à Docker Hub (images de base) avant de fabriquer, avec DHI_USERNAME et DHI_TOKEN
 # de deployment/docker.env (le fichier de docker-deploy.zsh ; voir deployment/docker.example.env).
-login_dhi() {
+login_docker_hub() {
   local settings=deployment/docker.env user="" token=""
   if [[ -f $settings ]]; then
     user=$(sed -n 's/^DHI_USERNAME=//p' $settings | tail -1); token=$(sed -n 's/^DHI_TOKEN=//p' $settings | tail -1)
   fi
   if [[ -z $user || -z $token ]]; then
-    info "DHI_USERNAME et DHI_TOKEN absents de $settings : on compte sur un « $ENGINE login dhi.io » déjà fait"
+    info "DHI_USERNAME et DHI_TOKEN absents de $settings : images de base téléchargées sans connexion (Docker Hub limite alors le nombre de téléchargements)"
     return 0
   fi
   # Jeton passé par l'entrée standard : jamais sur la ligne de commande, ni à l'écran.
-  print -r -- $token | $ENGINE login dhi.io --username $user --password-stdin >/dev/null \
-    || fail "Connexion à dhi.io refusée pour $user : vérifier DHI_USERNAME et DHI_TOKEN dans $settings."
-  ok "Connecté à dhi.io ($user)"
+  print -r -- $token | $ENGINE login docker.io --username $user --password-stdin >/dev/null \
+    || fail "Connexion à Docker Hub refusée pour $user : vérifier DHI_USERNAME et DHI_TOKEN dans $settings."
+  ok "Connecté à Docker Hub ($user)"
 }
 
 usage="Usage : ./deployment/k8s-deploy.zsh [--context <nom>] [--namespace <nom>] [--values <fichier>]… [--registry <adresse>] [--yes] [--reset] [--podman]"
@@ -177,7 +177,7 @@ step "Images (version $VERSION)"
 IMAGES=()
 if [[ $KIND == true ]]; then
   # Fabriquées sur le poste, puis copiées directement dans kind : pas besoin de registre.
-  login_dhi
+  login_docker_hub
   if [[ $ENGINE == podman ]]; then
     # « kind load docker-image » ne sait parler qu'à Docker : avec Podman, l'image passe par un
     # fichier (podman save, puis kind load image-archive), effacé à la fin.
@@ -189,13 +189,13 @@ if [[ $KIND == true ]]; then
       # Nom complet docker.io/library/… : celui sous lequel kind cherche « suivi-delivery-…:<version> »
       # (Podman nommerait sinon l'image localhost/…, que le cluster ne trouverait pas).
       image=docker.io/library/suivi-delivery-$part:$VERSION
-      podman build -t $image ${FOLDERS[$part]} || fail "La fabrication de l'image $part a échoué (image de base refusée : connexion à dhi.io)."
+      podman build -t $image ${FOLDERS[$part]} || fail "La fabrication de l'image $part a échoué (image de base introuvable, ou limite de téléchargement de Docker Hub atteinte)."
       podman save -o $ARCHIVES/$part.tar $image || fail "L'enregistrement de l'image $part a échoué."
       kind load image-archive $ARCHIVES/$part.tar --name $CLUSTER_KIND
       rm -f $ARCHIVES/$part.tar
     else
       docker build -t suivi-delivery-$part:$VERSION ${FOLDERS[$part]} \
-        || fail "La fabrication de l'image $part a échoué (image de base refusée : connexion à dhi.io)."
+        || fail "La fabrication de l'image $part a échoué (image de base introuvable, ou limite de téléchargement de Docker Hub atteinte)."
       kind load docker-image suivi-delivery-$part:$VERSION --name $CLUSTER_KIND
     fi
     ok "Image suivi-delivery-$part:$VERSION fabriquée et chargée dans kind"

@@ -1,23 +1,22 @@
 # Image de l'API. Tout se fait ici : `docker build` suffit (pas d'étape à faire avant).
 #
-# Images de base : Docker Hardened Images (dhi.io, connexion requise : `docker login dhi.io`),
-# réduites au strict nécessaire, presque sans faille connue. Voir docs/deploiement.md.
+# Images de base : celles des éditeurs, sur Docker Hub (aucune connexion requise) : Python, image
+# officielle « slim » (Debian 13, trixie), et uv, image d'Astral. Voir docs/deploiement.md.
 #
 # Deux étapes :
 #   1. « build »  : récupère les dépendances Python, aux versions exactes de uv.lock (empreintes
 #                   vérifiées), avec uv (l'outil d'Astral), dans un environnement à part (.venv) ;
-#                   image « -dev » : elle a un shell, l'image finale n'en a pas ;
-#   2. l'image finale : Python, cet environnement et le code. Ni uv ni shell : rien ne pourra
-#                   être installé ou lancé d'autre dans le conteneur.
+#   2. l'image finale : Python, cet environnement et le code. Pas d'uv : il ne sert qu'à la
+#                   fabrication.
 #
 # Fabrication, depuis backend/ :
 #   docker build -t suivi-delivery-backend-local .
 
 # ---------- Étape 1 : les dépendances ----------
-FROM dhi.io/python:3.14.8-debian13-dev AS build
+FROM docker.io/library/python:3.14.8-slim-trixie AS build
 
-# uv (version figée, la même que la CI), recopié de son image durcie, le temps de cette étape.
-COPY --from=dhi.io/uv:0.13.4-debian13 /usr/local/bin/uv /usr/local/bin/uv
+# uv (version figée, la même que la CI), recopié de l'image d'Astral, le temps de cette étape.
+COPY --from=docker.io/astral/uv:0.13.4 /uv /usr/local/bin/uv
 
 WORKDIR /app
 # D'abord les seules listes de dépendances : cette étape reste en cache tant qu'elles ne changent pas.
@@ -39,22 +38,22 @@ RUN set -eu; \
 COPY app ./app
 
 # OpenShift lance le conteneur avec un utilisateur au hasard, du groupe 0 : on donne les
-# droits à ce groupe. Fait ici, car l'image finale n'a pas de shell pour le faire (les droits
-# sont gardés par la copie). /data : le dossier de la base SQLite (APP_DB_FILE), où l'API écrit ;
-# un volume y est monté pour garder les données (docker-deploy.zsh, chart Helm).
-RUN chgrp -R 0 /app && chmod -R g=u /app \
-    && mkdir /data && chmod 770 /data
+# droits à ce groupe (gardés par la copie vers l'image finale).
+RUN chgrp -R 0 /app && chmod -R g=u /app
 
 # ---------- Étape 2 : exécution ----------
-# Même Python que l'étape 1 (/usr/bin/python3.14) : l'environnement .venv y fonctionne tel quel.
-# L'image durcie contient le pip de Debian : sans shell, on ne peut pas l'en retirer ; .venv,
-# lui, n'en a pas.
-FROM dhi.io/python:3.14.8-debian13
+# Même image que l'étape 1 (/usr/local/bin/python3.14) : l'environnement .venv y fonctionne tel
+# quel. L'image officielle contient pip pour son Python ; .venv, lui, n'en a pas.
+FROM docker.io/library/python:3.14.8-slim-trixie
 
 WORKDIR /app
 COPY --from=build /app /app
-# --chown : sans lui, la copie donnerait le dossier à root (droits 770 gardés : groupe 0 compris).
-COPY --from=build --chown=1001:0 /data /data
+
+# /data : le dossier de la base SQLite (APP_DB_FILE), où l'API écrit ; un volume y est monté pour
+# garder les données (docker-deploy.zsh, chart Helm). Créé ici, dans l'image finale : une copie
+# depuis l'étape 1 ne garderait pas ses droits. À l'utilisateur 1001 (hors OpenShift) et au
+# groupe 0 (utilisateur au hasard d'OpenShift).
+RUN mkdir /data && chown 1001:0 /data && chmod 770 /data
 
 # Réglages par défaut dans un conteneur (modifiables au lancement, voir docs/deploiement.md).
 # Les données sont dans le fichier SQLite APP_DB_FILE, sous /data : y monter un volume, sinon

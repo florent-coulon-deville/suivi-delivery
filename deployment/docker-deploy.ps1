@@ -27,7 +27,7 @@
 # Réglages : UN seul fichier, deployment/docker.env (non suivi par Git), reçu par chaque
 # conteneur. S'il n'existe pas, le script le crée en mettant bout à bout les modèles de chaque
 # module (<module>/docker.example.env), précédés de celui du script (deployment/docker.example.env :
-# DHI_USERNAME, DHI_TOKEN, la connexion à dhi.io, d'où viennent les images de base ; remplis, le
+# DHI_USERNAME, DHI_TOKEN, la connexion à Docker Hub, d'où viennent les images de base ; remplis, le
 # script se connecte avant de fabriquer ; ces lignes ne sont jamais transmises aux conteneurs).
 # Chaque conteneur y trouve tous ses réglages (pas de « -e »).
 #
@@ -59,7 +59,7 @@ $PORT_FRONTEND = 8080
 # Le fichier des réglages, et les modèles qui servent à le créer (dans cet ordre).
 $SETTINGS = "deployment/docker.env"
 $TEMPLATES = "deployment/docker.example.env", "backend/docker.example.env", "frontend/docker.example.env"
-# Réglages du script lui-même (connexion à dhi.io) : retirés de la copie de docker.env donnée aux
+# Réglages du script lui-même (connexion à Docker Hub) : retirés de la copie de docker.env donnée aux
 # conteneurs, pour qu'aucun jeton n'entre dans un conteneur.
 $SCRIPT_SETTINGS = "DHI_USERNAME", "DHI_TOKEN"
 
@@ -161,18 +161,18 @@ function check_port($port) {
     ok "Port $port disponible"
 }
 
-function login_dhi {  # connexion à dhi.io (images de base durcies), si docker.env en donne les moyens
+function login_docker_hub {  # connexion à Docker Hub (images de base), si docker.env en donne les moyens
     $user = setting "DHI_USERNAME"; $token = setting "DHI_TOKEN"
     if (-not $user -or -not $token) {
-        info "DHI_USERNAME et DHI_TOKEN vides dans $SETTINGS : on compte sur un « $ENGINE login dhi.io » déjà fait"
+        info "DHI_USERNAME et DHI_TOKEN vides dans $SETTINGS : images de base téléchargées sans connexion (Docker Hub limite alors le nombre de téléchargements)"
         return
     }
     # Jeton passé par l'entrée standard : jamais sur la ligne de commande, ni à l'écran.
-    $token | & $ENGINE login dhi.io --username $user --password-stdin > $null
+    $token | & $ENGINE login docker.io --username $user --password-stdin > $null
     if ($LASTEXITCODE -ne 0) {
-        fail "Connexion à dhi.io refusée pour $user : vérifier DHI_USERNAME et DHI_TOKEN dans $SETTINGS (jeton en lecture seule, voir docs/deploiement.md, section 7)."
+        fail "Connexion à Docker Hub refusée pour $user : vérifier DHI_USERNAME et DHI_TOKEN dans $SETTINGS (jeton en lecture seule, voir docs/deploiement.md, section 7)."
     }
-    ok "Connecté à dhi.io ($user)"
+    ok "Connecté à Docker Hub ($user)"
 }
 
 # Copie de docker.env pour les conteneurs, sans les réglages du script : un fichier provisoire
@@ -191,7 +191,7 @@ function remove_container_settings {
 
 function build_image($image, $folder) {
     & $ENGINE build -t $image $folder
-    if ($LASTEXITCODE -ne 0) { fail "La fabrication de l'image $image a échoué (voir ci-dessus ; image de base refusée : connexion à dhi.io, DHI_USERNAME et DHI_TOKEN de $SETTINGS)." }
+    if ($LASTEXITCODE -ne 0) { fail "La fabrication de l'image $image a échoué (voir ci-dessus ; image de base introuvable, ou limite de téléchargement de Docker Hub atteinte : remplir DHI_USERNAME et DHI_TOKEN de $SETTINGS)." }
     ok "Image $image prête"
 }
 
@@ -287,7 +287,7 @@ if (selected "frontend") { check_port $PORT_FRONTEND }
 
 # --- 1. Fabriquer les images (avant de toucher aux conteneurs en place) --------
 step "Fabrication des images"
-login_dhi
+login_docker_hub
 if (selected "backend") { build_image $BACKEND backend }
 if (selected "frontend") { build_image $FRONTEND frontend }
 

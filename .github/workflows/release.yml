@@ -15,7 +15,7 @@
 #           les mêmes images recopiées sous <partie>-<version>, et le chart Helm (OCI) sous
 #           <version>.
 # Une étiquette posée avec le jeton GITHUB_TOKEN ne déclenche aucun autre workflow : tout se
-# passe donc dans ce pipeline. Publication ratée (panne de dhi.io…) : bouton « Run workflow »,
+# passe donc dans ce pipeline. Publication ratée (panne d'un registre…) : bouton « Run workflow »,
 # avec l'étiquette (v0.5.0) : les étapes 2a à 2d reprennent pour elle.
 #
 # Réglage du dépôt requis : Settings → Actions → General → « Allow GitHub Actions to create and
@@ -154,7 +154,7 @@ jobs:
   # Les images sont recopiées depuis ghcr.io (publiques), avec leurs deux processeurs : rien n'est
   # refabriqué, ce sont exactement les mêmes. Le chart est publié en OCI : il s'installe avec
   #   helm install suivi-delivery oci://registry-1.docker.io/<compte>/suivi-delivery --version X.Y.Z
-  # Compte et jeton : ceux de dhi.io (DHI_USERNAME, DHI_TOKEN ; le jeton doit avoir le droit
+  # Compte et jeton : le compte Docker du dépôt (DHI_USERNAME, DHI_TOKEN ; le jeton doit avoir le droit
   # d'écrire, « Read, Write, Delete »). Connexions faites par Docker et Helm eux-mêmes, le jeton
   # passé par l'entrée standard. helm : celui installé par GitHub sur ses machines.
   dockerhub:

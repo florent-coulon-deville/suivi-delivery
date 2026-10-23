@@ -47,7 +47,7 @@ jobs:
     name: Backend
     if: "!startsWith(github.event.head_commit.message, 'chore: version ')"
     uses: ./.github/workflows/_tests-backend.yml
-    secrets: inherit  # DHI_USERNAME, DHI_TOKEN (inutiles aux tests aujourd'hui : gardés pour la suite)
+    secrets: inherit  # DHI_USERNAME, DHI_TOKEN (inutiles aux tests aujourd'hui)
   frontend:
     name: Frontend
     if: "!startsWith(github.event.head_commit.message, 'chore: version ')"
@@ -99,4 +99,4 @@ jobs:
       # (demande de l'utilisateur). « docker pull » prend tout seul la bonne.
       multiarch: true
       no_cache: ${{ inputs.no_cache == true }}
-    secrets: inherit  # DHI_USERNAME, DHI_TOKEN (images de base durcies)
+    secrets: inherit  # DHI_USERNAME, DHI_TOKEN (compte Docker : Docker Hub, Docker Scout)

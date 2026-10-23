@@ -158,9 +158,8 @@ avant, par `npm ci --ignore-scripts` puis `npm run build`, et l'image copie seul
 - si un jour l'interface affiche des images optimisées, il faudra reprendre `sharp` et construire
   le site pour chaque processeur.
 
-**Versions de Node.js** : l'image se construit avec `dhi.io/node:26.12.1-alpine3.24-dev` et tourne
-avec `dhi.io/node:26.12.1-alpine3.24` (Docker Hardened Images ; l'image d'exécution n'a ni shell
-ni npm) ; le poste et la CI vérifient le code avec leur propre Node.js : garder la même version
+**Versions de Node.js** : l'image se construit et tourne avec `node:26.12.1-alpine3.24` (image
+officielle de Docker Hub) ; le poste et la CI vérifient le code avec leur propre Node.js : garder la même version
 majeure partout (Node 26, `setup-node` 26).
 
 ## 5. Organisation du code (`frontend/`)
