@@ -24,7 +24,7 @@ jobs:
   image:
     name: Image ${{ matrix.part }} (construction, sans publication)
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 40  # jusqu'à 3 essais de fabrication
     strategy:
       fail-fast: false  # une image cassée n'arrête pas la vérification des autres
       matrix:
@@ -69,7 +69,42 @@ jobs:
           done
           echo "::error::dhi.io ne répond pas après 5 essais : réessayer plus tard (Re-run failed jobs)."
           exit 1
-      - name: Construire l'image ${{ matrix.part }}
+      # Fabrication essayée jusqu'à 3 fois (pauses de 60 puis 120 s) : dhi.io ne répond
+      # parfois pas aux machines GitHub pendant la lecture des images de base
+      # (« DeadlineExceeded », vu le 2026-10-23). GitHub ne sait pas répéter une étape :
+      # elle est écrite trois fois, chaque essai ne se lançant que si le précédent a échoué.
+      # Le cache rend un nouvel essai rapide (ce qui est déjà fabriqué n'est pas refait).
+      - name: Construire l'image ${{ matrix.part }} (essai 1 sur 3)
+        id: build1
+        continue-on-error: true  # un échec mène à l'essai suivant
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          push: false  # vérifier seulement : rien n'est publié
+          cache-from: type=gha,scope=${{ matrix.part }}
+          cache-to: type=gha,scope=${{ matrix.part }},mode=max
+      - name: Pause avant l'essai 2
+        if: steps.build1.outcome == 'failure'
+        run: |
+          echo "::warning::Fabrication ratée (essai 1 sur 3, souvent dhi.io qui ne répond pas), nouvel essai dans 60 s."
+          sleep 60
+      - name: Construire l'image ${{ matrix.part }} (essai 2 sur 3)
+        if: steps.build1.outcome == 'failure'
+        id: build2
+        continue-on-error: true  # un échec mène à l'essai suivant
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          push: false  # vérifier seulement : rien n'est publié
+          cache-from: type=gha,scope=${{ matrix.part }}
+          cache-to: type=gha,scope=${{ matrix.part }},mode=max
+      - name: Pause avant l'essai 3
+        if: steps.build2.outcome == 'failure'
+        run: |
+          echo "::warning::Fabrication ratée (essai 2 sur 3, souvent dhi.io qui ne répond pas), nouvel essai dans 120 s."
+          sleep 120
+      - name: Construire l'image ${{ matrix.part }} (essai 3 sur 3)
+        if: steps.build2.outcome == 'failure'
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
           context: ${{ matrix.context }}
