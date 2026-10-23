@@ -39,8 +39,9 @@ images:
   # IfNotPresent : réutiliser une image déjà présente sur le nœud (kind : images chargées à la main).
   pullPolicy: IfNotPresent
 
-# Accès au registre des images. Le Secret est créé à partir de values-secret.yaml (« registre »),
-# ou, s'il existe déjà dans l'espace de noms, indiquer son nom ici.
+# Accès à un registre d'images privé (inutile pour ghcr.io : images publiques). Le Secret est créé
+# à partir de values-secret.yaml (« registry »), ou, s'il existe déjà dans l'espace de noms,
+# indiquer son nom ici.
 registry:
   existingSecret: ""
 

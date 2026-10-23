@@ -625,7 +625,7 @@ values.yaml (dans le chart)  →  -f values-secret.yaml  →  -f values-<instanc
 
 | Fichier | Contenu | Dans Git ? |
 | --- | --- | --- |
-| `values-secret.yaml` | les **secrets** : accès au registre, mot de passe initial de l'admin, clé du client de l'API dans Keycloak, mots de passe de la base (nos tables, Keycloak), administrateur de la console Keycloak | **jamais** |
+| `values-secret.yaml` | les **secrets** : accès à un registre privé (vide pour ghcr.io, images publiques), mot de passe initial de l'admin, clé du client de l'API dans Keycloak, mots de passe de la base (nos tables, Keycloak), administrateur de la console Keycloak | **jamais** |
 | `values-<instance>.yaml` (ex. `values-crc.yaml`) | ce qui est **propre à l'instance** et n'est pas secret : nom affiché, couleur du bandeau, base fournie, Route… | le modèle oui (`values-crc.example.yaml`, dans le chart), la copie non |
 
 Les modèles sont dans le dossier du chart :

@@ -13,7 +13,7 @@ Installe tout l'outil de suivi des mises en production : l'**API** (backend), l'
 | Services `-backend`, `-frontend` | adresses internes ; l'API n'est jamais exposée à l'extérieur |
 | Route (OpenShift) **ou** Ingress | l'adresse publique de l'interface, en HTTPS. La Route n'est créée que sur OpenShift |
 | Secret `<installation>-application` | `APP_ADMIN_PASSWORD` (mot de passe initial de l'admin, importé dans Keycloak), `APP_DB_PASSWORD`, `APP_KEYCLOAK_CLIENT_SECRET` (client de l'API dans Keycloak), `KC_DB_PASSWORD`, `KC_BOOTSTRAP_ADMIN_PASSWORD` : fournis, ou générés à la première installation puis conservés (sauf les mots de passe d'une base fournie, obligatoires) ; **jamais supprimé** par `helm uninstall` |
-| Secret `<installation>-registre` | accès au registre des images, si values-secret.yaml en donne un |
+| Secret `<installation>-registre` | accès à un registre d'images privé, seulement si values-secret.yaml en donne un (inutile pour ghcr.io : images publiques) |
 | NetworkPolicy | seule l'interface (et le test Helm) peut joindre l'API ; seuls l'interface et l'API peuvent joindre Keycloak ; seuls l'API et Keycloak peuvent joindre la base intégrée |
 | ServiceAccount | sans droits, sans jeton monté : l'application ne parle pas à Kubernetes |
 
@@ -30,7 +30,7 @@ Ces images sont publiées par la CI à la sortie de chaque version (étiquette G
 | Fichier | Publié | Contenu |
 | --- | --- | --- |
 | `values.yaml` | oui | tous les réglages **non secrets**, commentés : images, nom de l'instance, base (intégrée ou fournie, schémas), Keycloak, Route, ressources… |
-| `values-secret.yaml` | **jamais** (ignoré par Git et par Helm) | les **secrets** : accès au registre des images, mot de passe initial de l'admin, mots de passe de la base (nos tables, Keycloak), clé du client de l'API dans Keycloak, administrateur de la console Keycloak. Modèle : `values-secret.example.yaml` |
+| `values-secret.yaml` | **jamais** (ignoré par Git et par Helm) | les **secrets** : accès à un registre privé (vide pour ghcr.io), mot de passe initial de l'admin, mots de passe de la base (nos tables, Keycloak), clé du client de l'API dans Keycloak, administrateur de la console Keycloak. Modèle : `values-secret.example.yaml` |
 | `values-<instance>.yaml` | **non** (ignoré par Git) ; le modèle `values-<instance>.exemple.yaml` oui | les réglages **non secrets propres à une instance** (nom affiché, couleur, base fournie, Route…), seulement ce qui diffère de `values.yaml`. Exemple : `values-crc.example.yaml` (OpenShift Local), à copier en `values-crc.yaml` |
 
 Helm applique les fichiers dans l'ordre (`values.yaml`, puis chaque `-f`) : le dernier l'emporte.

@@ -60,3 +60,14 @@ Dans **Settings**, puis **General**, section « Pull Requests » :
 - **Allow squash merging** coché, avec **Default commit message : Pull request title** : le commit sur `main` porte exactement le titre vérifié par la CI ;
 - **Allow merge commits** et **Allow rebase merging** décochés : le squash est la seule façon de fusionner ;
 - **Automatically delete head branches** coché : GitHub supprime la branche dès que sa PR est fusionnée. Il ne reste que le ménage local (étapes 1 à 4), qui s'appuie justement sur cette suppression.
+
+Dans **Settings**, puis **Rules**, puis **Rulesets** : la règle **« main »** (active, reprise du dépôt SimpleDisenchant, avec le squash) protège `main` :
+
+- interdit de la **supprimer** ou de **réécrire son historique** (`push --force`) ;
+- **historique linéaire** (pas de commit de fusion) et **commits signés** (les fusions faites par GitHub le sont d'office ; sur le poste, `git config commit.gpgsign true`) ;
+- **passage par une PR**, fusionnée en **squash** seulement, sans relecture obligatoire ;
+- **exception pour les administrateurs du dépôt** (« Repository admin », toujours) : les petites corrections peuvent encore être poussées directement sur `main`.
+
+Une règle « tags » (protéger les étiquettes `vX.Y.Z` contre la suppression et la réécriture) existe, **désactivée**.
+
+Dans **Settings**, puis **Advanced Security** (dépôt public : gratuit) : **Secret Protection** (détection des secrets poussés, et **blocage du push** qui en contient un) et **Dependabot alerts** (alerte quand une bibliothèque utilisée a une faille connue) sont activés.

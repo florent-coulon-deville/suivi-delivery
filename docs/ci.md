@@ -228,18 +228,20 @@ Le pipeline release fabrique donc chaque image **deux fois, sur une vraie machin
 
 On utilise toujours `<version>` (sans suffixe) : `docker pull`, comme OpenShift, y prend tout seul la version qui convient à la machine. Les étiquettes `-amd64` et `-arm64` ne servent qu'à l'assemblage.
 
-Vérifier, après connexion à `ghcr.io` (`docker login ghcr.io`, avec un jeton `read:packages`) :
+Vérifier, sans connexion (les images sont publiques) :
 
 ```bash
-docker buildx imagetools inspect ghcr.io/florent-coulon-deville/suivi-delivery-backend:0.3.1
+docker buildx imagetools inspect ghcr.io/florent-coulon-deville/suivi-delivery-backend:0.5.0
 ```
 
 La réponse doit lister `linux/amd64` et `linux/arm64`.
 
 ### Qui peut télécharger les images
 
-Une image de `ghcr.io` prend la **visibilité du dépôt** : si le dépôt est privé, les images le sont aussi. Le cluster a alors besoin d'un accès en lecture, donné dans `values-secret.yaml` du chart (`registry`) :
+Les images sont **publiques** (dépôt public depuis le 2026-10-23) : tout le monde peut les télécharger **sans connexion**, `docker pull` comme le cluster. Rien à donner au chart pour ghcr.io.
 
-- `url` : `ghcr.io` ;
-- `user_args` : le compte GitHub ;
-- `password` : un **jeton personnel GitHub** (*Settings* → *Developer settings* → *Personal access tokens* → *Tokens (classic)*) avec **le seul droit `read:packages`**, et une date d'expiration. Jamais un vrai mot de passe.
+Une image de `ghcr.io` ne prend la visibilité du dépôt qu'**à sa création** : passer le dépôt en public n'a pas rendu publiques les images déjà publiées. Chacune a été passée en public à la main (profil GitHub → *Packages* → l'image → *Package settings* → *Change visibility*) ; une nouvelle image, créée depuis, l'est d'office.
+
+Seule la **publication** demande une connexion : la CI la fait avec son jeton `GITHUB_TOKEN` (droit `packages: write`).
+
+L'accès au registre du chart (`registry` de `values-secret.yaml`) ne sert plus que pour un **registre privé** (un miroir d'entreprise, par exemple) : adresse, compte de préférence « robot » en lecture seule, et un jeton, jamais un vrai mot de passe.
