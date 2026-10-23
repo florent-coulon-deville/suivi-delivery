@@ -131,6 +131,7 @@ Le numéro de version est géré par **release-please** (outil de Google, action
 Une précision facultative entre parenthèses : `fix(frontend): …`, `feat(api): …`. Le texte après les deux-points reste en français. La CI « Titre de la PR » (`ci-pr-title.yml`) refuse un titre qui ne suit pas la règle : le corriger sur GitHub suffit, la vérification se relance. Les messages des commits de la branche sont libres.
 
 **2. Fusionner les PR comme d'habitude.** À chaque fusion sur `main`, release-please ouvre ou met à jour **une PR de version**, intitulée « chore: version X.Y.Z », qui :
+
 - change le numéro **partout à la fois** (`release-please-config.json`, rubrique `extra-files`) : `backend/pyproject.toml`, `backend/uv.lock`, `frontend/package.json`, `frontend/package-lock.json` (deux endroits), `helm/suivi-delivery/Chart.yaml` (`version` et `appVersion`, repérées par le commentaire `# x-release-please-version`) ;
 - complète **`CHANGELOG.md`** (rubriques « Nouveautés », « Corrections », etc.) ;
 - note la nouvelle version dans `.release-please-manifest.json` (la dernière version sortie, point de départ du calcul).
@@ -138,19 +139,19 @@ Une précision facultative entre parenthèses : `fix(frontend): …`, `feat(api)
 Cette PR attend : on peut fusionner plusieurs PR, elle se met à jour à chaque fois.
 
 **3. Sortir la version = fusionner la PR de version.** release-please pose alors l'étiquette `vX.Y.Z`, crée la *Release* GitHub (avec le journal), puis `release.yml` lance la **publication des images** (`publication.yml`). Elle :
-   - vérifie que l'étiquette est égale à la version unique, sinon s'arrête ;
-   - **refuse de republier une version existante** : une image publiée ne change jamais. Pour corriger, on sort une nouvelle version (un `fix:`) ;
-   - fabrique les cinq images (backend, frontend, Liquibase, Keycloak, PostgreSQL) à partir d'images de base à jour, et les publie. **Jamais d'étiquette `latest`** : on sait toujours quelle version tourne.
-   - fabrique chaque image **pour deux types de processeurs** (voir ci-dessous).
+    - vérifie que l'étiquette est égale à la version unique, sinon s'arrête ;
+    - **refuse de republier une version existante** : une image publiée ne change jamais. Pour corriger, on sort une nouvelle version (un `fix:`) ;
+    - fabrique les cinq images (backend, frontend, Liquibase, Keycloak, PostgreSQL) à partir d'images de base à jour, et les publie. **Jamais d'étiquette `latest`** : on sait toujours quelle version tourne.
+    - fabrique chaque image **pour deux types de processeurs** (voir ci-dessous).
 
 Publication ratée (panne de GitHub…) : onglet *Actions* → « Publication des images » → *Run workflow*, en donnant l'étiquette (`v0.5.0`).
 
 **À savoir :**
-- **Réglage du dépôt requis**, une fois : *Settings* → *Actions* → *General* → *Workflow permissions* → cocher « Allow GitHub Actions to create and approve pull requests ». Sans lui, release-please ne peut pas ouvrir sa PR.
-- La PR de version est ouverte avec le jeton de la CI (`GITHUB_TOKEN`) : GitHub n'y lance **aucune vérification** (il évite ainsi les boucles). Elle ne change que des numéros et le journal ; si des vérifications deviennent obligatoires (§ 4), les lancer en fermant puis rouvrant la PR.
-- Pour la même raison, l'étiquette posée par release-please ne lance aucun workflow : c'est `release.yml` qui appelle la publication, dans la même exécution.
-- **Forcer un numéro** (par exemple passer en `1.0.0`) : un commit dont le message contient la ligne `Release-As: 1.0.0`.
-- Point de départ : `0.4.3` dans `.release-please-manifest.json`, et `bootstrap-sha` (le premier commit du dépôt) dans `release-please-config.json` : les commits d'avant ne sont pas relus.
+    - **Réglage du dépôt requis**, une fois : *Settings* → *Actions* → *General* → *Workflow permissions* → cocher « Allow GitHub Actions to create and approve pull requests ». Sans lui, release-please ne peut pas ouvrir sa PR.
+    - La PR de version est ouverte avec le jeton de la CI (`GITHUB_TOKEN`) : GitHub n'y lance **aucune vérification** (il évite ainsi les boucles). Elle ne change que des numéros et le journal ; si des vérifications deviennent obligatoires (§ 4), les lancer en fermant puis rouvrant la PR.
+    - Pour la même raison, l'étiquette posée par release-please ne lance aucun workflow : c'est `release.yml` qui appelle la publication, dans la même exécution.
+    - **Forcer un numéro** (par exemple passer en `1.0.0`) : un commit dont le message contient la ligne `Release-As: 1.0.0`.
+    - Point de départ : `0.4.3` dans `.release-please-manifest.json`, et `bootstrap-sha` (le premier commit du dépôt) dans `release-please-config.json` : les commits d'avant ne sont pas relus.
 
 **Le chart Helm n'est plus publié sur GitHub** (décision de l'utilisateur) : il reste vérifié à chaque PR (chart-verifier, § 2), et s'installe depuis le dépôt Git, à l'étiquette de la version. Les versions déjà publiées dans `oci://ghcr.io/florent-coulon-deville/charts/suivi-delivery` y restent.
 
