@@ -102,7 +102,7 @@ Une page demandée sans le rôle affiche « Accès réservé » : **ni ses donn�
 
 **Exporter** (bouton de la barre du haut, tous les rôles) : télécharge toute la configuration dans un fichier Excel, `suivi-delivery-<instance>-<date>.xlsx` (`GET /api/configuration`, voir [api.md](api.md#export--get-apiconfiguration)). La route `/configuration` (`app/configuration/route.ts`) demande le fichier à l'API et le transmet : le navigateur ne parle toujours pas à l'API.
 
-**Import** (`/import`, administration) : recharge le fichier de l'export, éventuellement modifié ou partiel (`PATCH /api/configuration`, voir [api.md](api.md#import--patch-apiconfiguration-mode-fusion)). 
+**Import** (`/import`, administration) : recharge le fichier de l'export, éventuellement modifié ou partiel (`PATCH /api/configuration`, voir [api.md](api.md#import--patch-apiconfiguration-mode-fusion)).
 
 1. On choisit le fichier.
 2. **Vérifier** affiche l'aperçu : par onglet, les ajouts, modifications et lignes inchangées ; le détail des changements ; les problèmes, avec leur onglet et leur ligne.

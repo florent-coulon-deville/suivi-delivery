@@ -18,7 +18,7 @@ Deux mots à connaître :
 | **API** | vérifie chaque jeton (signature de Keycloak, destinataire, expiration), y lit le rôle ; gère les comptes **dans Keycloak** pour l'écran Comptes (`/api/accounts`) |
 | **Base PostgreSQL** | une seule base : nos tables dans le schéma `suivi_delivery`, celles de Keycloak dans le schéma `keycloak`, avec son propre utilisateur (qui n'a accès qu'à son schéma) |
 
-```
+```Plaintext
 navigateur ──► interface (https://outil/…)          pages de l'outil
            └─► interface (https://outil/auth/…) ──► Keycloak (adresse interne)   pages de connexion
 interface ──(jeton)──► API ──(clés de signature, gestion des comptes)──► Keycloak
