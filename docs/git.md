@@ -70,4 +70,12 @@ Dans **Settings**, puis **Rules**, puis **Rulesets** : la règle **« main »** 
 
 Une règle « tags » (protéger les étiquettes `vX.Y.Z` contre la suppression et la réécriture) existe, **désactivée**.
 
-Dans **Settings**, puis **Advanced Security** (dépôt public : gratuit) : **Secret Protection** (détection des secrets poussés, et **blocage du push** qui en contient un) et **Dependabot alerts** (alerte quand une bibliothèque utilisée a une faille connue) sont activés.
+Dans **Settings**, puis **Advanced Security** (dépôt public : tout est gratuit) :
+
+- **Private vulnerability reporting** : quelqu'un peut signaler une faille en privé ;
+- **Dependabot alerts** : alerte quand une bibliothèque utilisée a une faille connue ;
+- **Dependabot security updates** : Dependabot ouvre alors une PR qui passe à la version corrigée. Ses PR sont réglées par `.github/dependabot.yml` : titre `fix(deps): …` (Conventional Commits), et **aucune mise à jour ordinaire** (0 PR) : seulement les corrections de sécurité. Les exécutions lancées par Dependabot n'ont pas les secrets du dépôt : `DHI_USERNAME` et `DHI_TOKEN` sont aussi à mettre dans *Secrets and variables* → **Dependabot** (sinon le snapshot de ses branches échoue à la connexion à dhi.io) ;
+- **Code scanning** : **CodeQL** (outil de GitHub), en configuration par défaut, analyse notre code (Python, TypeScript, workflows GitHub) à chaque push sur `main` et chaque PR, et chaque semaine ; les rapports **Docker Scout** des images y arrivent aussi ([ci.md § 2](ci.md)) ;
+- **Secret Protection** et **Push protection** : détection des secrets poussés, et blocage du push qui en contient un.
+
+Tous les résultats sont dans l'onglet **Security** du dépôt.
