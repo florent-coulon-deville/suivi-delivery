@@ -10,7 +10,7 @@ Usage, depuis la racine du projet (Python 3.11 ou plus, rien à installer ; sur 
 du système est trop ancien : prendre celui du projet) :
     backend/.venv/bin/python cicd/check_versions.py
 Sort en erreur (code 1), avec la liste des numéros trouvés, s'ils ne sont pas tous égaux.
-Lancé par la CI (.github/workflows/ci-version.yml). Les numéros sont changés ensemble par
+Lancé par la CI (.github/workflows/_version.yml, et release.yml avant de publier). Les numéros sont changés ensemble par
 release-please (release-please-config.json, voir docs/ci.md § 5).
 """
 

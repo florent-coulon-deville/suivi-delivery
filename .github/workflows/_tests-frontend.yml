@@ -1,23 +1,20 @@
-# CI du frontend (interface Next.js) : types TypeScript et construction du site.
-# Mêmes contrôles que sur le poste (npm run typecheck, npm run build). Rien n'est déployé.
+# Brique réutilisable (appelée par snapshot.yml et release.yml, jamais lancée seule) :
+# vérifications du frontend (interface Next.js) : types TypeScript et construction du site.
+# Mêmes contrôles que sur le poste (npm run typecheck, npm run build).
 #
 # Actions figées par leur empreinte de commit (version en commentaire). Voir docs/ci.md.
-name: CI frontend
+name: Tests frontend
 
 on:
-  pull_request:
-    branches: [main]
-    paths: ["frontend/**", ".github/workflows/ci-frontend.yml"]
-  push:
-    branches: [main]
-    paths: ["frontend/**", ".github/workflows/ci-frontend.yml"]
+  workflow_call:
+    inputs:
+      ref:
+        description: "Commit, branche ou étiquette à vérifier (vide : celui qui a lancé le pipeline)"
+        type: string
+        default: ""
 
 permissions:
   contents: read
-
-concurrency:
-  group: ci-frontend-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   frontend:
@@ -30,6 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          ref: ${{ inputs.ref }}
           persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
