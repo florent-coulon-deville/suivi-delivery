@@ -222,11 +222,19 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     continue-on-error: true  # rapport seulement
+    permissions:
+      contents: read
+      security-events: write  # alertes dans l'onglet Security (Code scanning)
     strategy:
       fail-fast: false
       matrix:
         part: [backend, frontend, liquibase, keycloak, postgres]
     steps:
+      # Le code de l'image : les alertes y pointent vers son Dockerfile.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
       - name: Rapport Docker Scout 1.26.0
         env:
           DOCKER_SCOUT_HUB_USER: ${{ secrets.DHI_USERNAME }}
@@ -245,3 +253,37 @@ jobs:
             echo "### Critiques et élevées"
             scout cves --only-severity critical,high --format markdown || true
           } 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"  # dans le résumé, et dans le journal
+      # Toutes les failles (faibles comprises) au format SARIF, le format commun des outils
+      # d'analyse, pour l'onglet Security. Scout rattache chaque faille à « Dockerfile » : on la
+      # rattache au vrai fichier du dépôt (<partie>/Dockerfile).
+      - name: Rapport SARIF
+        env:
+          DOCKER_SCOUT_HUB_USER: ${{ secrets.DHI_USERNAME }}
+          DOCKER_SCOUT_HUB_PASSWORD: ${{ secrets.DHI_TOKEN }}
+          IMAGE: ${{ needs.prepare.outputs.registry }}/suivi-delivery-${{ matrix.part }}:${{ inputs.tag }}
+          PART: ${{ matrix.part }}
+        run: |
+          docker run --rm -e DOCKER_SCOUT_HUB_USER -e DOCKER_SCOUT_HUB_PASSWORD \
+            docker.io/docker/scout-cli:1.26.0 cves "registry://$IMAGE" --platform linux/amd64 \
+            --format sarif > scout.sarif
+          python3 - <<'PYTHON'
+          import json, os
+          path = "scout.sarif"
+          report = json.load(open(path))
+          for run in report["runs"]:
+              for result in run.get("results", []):
+                  for location in result.get("locations", []):
+                      artifact = location.get("physicalLocation", {}).get("artifactLocation", {})
+                      if artifact.get("uri") == "Dockerfile":
+                          artifact["uri"] = f"{os.environ['PART']}/Dockerfile"
+          json.dump(report, open(path, "w"))
+          print(sum(len(run.get("results", [])) for run in report["runs"]), "failles dans le rapport")
+          PYTHON
+      # Action publiée par GitHub (figée par son empreinte de commit) : chaque faille devient une
+      # alerte, suivie d'une exécution à l'autre, fermée d'elle-même une fois corrigée. Une
+      # catégorie par image : les rapports des cinq images ne s'écrasent pas.
+      - name: Envoyer à l'onglet Security
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d  # v4.38.3
+        with:
+          sarif_file: scout.sarif
+          category: docker-scout-${{ matrix.part }}

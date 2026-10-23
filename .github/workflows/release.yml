@@ -11,8 +11,9 @@
 #           version publiée a forcément été testée) ;
 #        c. images : les cinq, Intel/AMD + ARM, publiées dans ghcr.io sous <version> (jamais
 #           « latest ») ;
-#        d. Docker Hub : les mêmes images recopiées sous docker.io/<compte>/suivi-delivery-*,
-#           et le chart Helm publié (OCI) sous docker.io/<compte>/suivi-delivery:<version>.
+#        d. Docker Hub : un seul dépôt pour toute l'application, docker.io/<compte>/suivi-delivery :
+#           les mêmes images recopiées sous <partie>-<version>, et le chart Helm (OCI) sous
+#           <version>.
 # Une étiquette posée avec le jeton GITHUB_TOKEN ne déclenche aucun autre workflow : tout se
 # passe donc dans ce pipeline. Publication ratée (panne de dhi.io…) : bouton « Run workflow »,
 # avec l'étiquette (v0.5.0) : les étapes 2a à 2d reprennent pour elle.
@@ -137,6 +138,7 @@ jobs:
     permissions:
       contents: read
       packages: write  # publier dans ghcr.io
+      security-events: write  # rapports Docker Scout dans l'onglet Security
     with:
       ref: ${{ needs.check.outputs.tag }}
       tag: ${{ needs.check.outputs.version }}
@@ -145,6 +147,10 @@ jobs:
     secrets: inherit  # DHI_USERNAME, DHI_TOKEN
 
   # --- Étape 2d : Docker Hub (images recopiées, chart Helm) ----------------------------------------
+  # UN SEUL dépôt Docker Hub pour toute l'application (choix de l'utilisateur : une application,
+  # plusieurs images ; l'offre gratuite de Docker Scout suit un seul dépôt) :
+  #   <compte>/suivi-delivery:<version>            le chart Helm (Helm lui donne ce nom)
+  #   <compte>/suivi-delivery:backend-<version>    les images : la partie, puis la version
   # Les images sont recopiées depuis ghcr.io (publiques), avec leurs deux processeurs : rien n'est
   # refabriqué, ce sont exactement les mêmes. Le chart est publié en OCI : il s'installe avec
   #   helm install suivi-delivery oci://registry-1.docker.io/<compte>/suivi-delivery --version X.Y.Z
@@ -178,8 +184,8 @@ jobs:
           source="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}"
           target="docker.io/${DHI_USERNAME,,}"
           for part in backend frontend liquibase keycloak postgres; do
-            docker buildx imagetools create --tag "$target/suivi-delivery-$part:$VERSION" "$source/suivi-delivery-$part:$VERSION"
-            echo "$target/suivi-delivery-$part:$VERSION"
+            docker buildx imagetools create --tag "$target/suivi-delivery:$part-$VERSION" "$source/suivi-delivery-$part:$VERSION"
+            echo "$target/suivi-delivery:$part-$VERSION"
           done
       - name: Publier le chart Helm (OCI)
         env:

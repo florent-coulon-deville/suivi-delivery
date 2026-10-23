@@ -92,6 +92,7 @@ jobs:
     permissions:
       contents: read
       packages: write  # publier dans ghcr.io
+      security-events: write  # rapports Docker Scout dans l'onglet Security
     with:
       tag: ${{ needs.tag.outputs.tag }}
       # Intel/AMD et ARM, comme une release : les snapshots tournent aussi sur un Mac ARM

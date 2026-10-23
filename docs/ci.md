@@ -52,7 +52,12 @@ Dans l'onglet *Actions*, chaque pipeline apparaît avec son graphe. **Tout est l
 
 Un Dockerfile cassé se voit à l'étape « images » du snapshot (il n'y a plus de fabrication séparée « sans publication »).
 
-**Failles connues des images (Docker Scout).** Après la publication, chaque image (snapshot comme version) passe à **Docker Scout 1.26.0**, l'outil de Docker (image officielle `docker/scout-cli`), avec le compte de dhi.io : il compte les failles connues (CVE) par gravité, critique, élevée, moyenne, faible, et dit lesquelles ont déjà une correction. Il lit aussi les avis joints par Docker à ses images durcies. **Rapport seulement** (choix de l'utilisateur) : un tableau par image dans le résumé de l'exécution (onglet *Actions* → l'exécution → *Summary*), jamais d'échec du pipeline. Pour voir une image sur le poste :
+**Failles connues des images (Docker Scout).** Après la publication, chaque image (snapshot comme version) passe à **Docker Scout 1.26.0**, l'outil de Docker (image officielle `docker/scout-cli`), avec le compte de dhi.io : il compte les failles connues (CVE) par gravité, critique, élevée, moyenne, faible, et dit lesquelles ont déjà une correction. Il lit aussi les avis joints par Docker à ses images durcies. **Rapport seulement** (choix de l'utilisateur), jamais d'échec du pipeline, à deux endroits :
+
+- un tableau par image dans le **résumé de l'exécution** (onglet *Actions* → l'exécution → *Summary*) ;
+- des **alertes** dans l'onglet **Security** → *Code scanning* du dépôt : le rapport complet (faibles comprises) est envoyé au format SARIF par l'action de GitHub `github/codeql-action/upload-sarif` (v4.38.3, figée par son empreinte), une catégorie par image (`docker-scout-backend`…). Chaque faille y est suivie d'une exécution à l'autre, rattachée au Dockerfile de l'image, et se ferme d'elle-même une fois corrigée. Les alertes sont tenues par branche.
+
+Sur Docker Hub, l'analyse continue de Docker Scout (un seul dépôt en offre gratuite) est **activée sur `florentcoulon/suivi-delivery`**, qui contient toutes les images des versions : leurs failles s'affichent aussi sur Docker Hub et sur [scout.docker.com](https://scout.docker.com). Pour voir une image sur le poste :
 
 ```bash
 docker scout quickview ghcr.io/florent-coulon-deville/suivi-delivery-backend:0.6.0
@@ -154,7 +159,7 @@ OpenShift ne fabrique pas les images : il les télécharge dans un **registre d'
 | Registre | Images | Chart Helm |
 | --- | --- | --- |
 | GitHub Container Registry | `ghcr.io/florent-coulon-deville/suivi-delivery-backend:<version>`, `…-frontend:<version>`, `…-liquibase:<version>`, `…-keycloak:<version>`, `…-postgres:<version>` (et les snapshots) | pas publié |
-| Docker Hub (dépôts publics, compte `DHI_USERNAME`) | `docker.io/florentcoulon/suivi-delivery-backend:<version>`, `…-frontend`, `…-liquibase`, `…-keycloak`, `…-postgres` (versions seulement) | `oci://registry-1.docker.io/florentcoulon/suivi-delivery`, version `<version>` |
+| Docker Hub (**un seul dépôt public**, `florentcoulon/suivi-delivery`, compte `DHI_USERNAME`) | `docker.io/florentcoulon/suivi-delivery:backend-<version>`, `…:frontend-<version>`, `…:liquibase-<version>`, `…:keycloak-<version>`, `…:postgres-<version>` (versions seulement) | le même dépôt, étiquette `<version>` : `oci://registry-1.docker.io/florentcoulon/suivi-delivery` |
 
 ### Sortir une version : release-please
 
@@ -193,7 +198,7 @@ Publication ratée (panne de dhi.io…) : onglet *Actions* → « Release » →
     - **Forcer un numéro** (par exemple passer en `1.0.0`) : un commit dont le message contient la ligne `Release-As: 1.0.0`.
     - Point de départ : `0.4.3` dans `.release-please-manifest.json`, et `bootstrap-sha` (le premier commit du dépôt) dans `release-please-config.json` : les commits d'avant ne sont pas relus.
 
-**Docker Hub** (job « Docker Hub » de `release.yml`, après les images) : les cinq images de la version sont **recopiées** depuis ghcr.io (`docker buildx imagetools create`, avec leurs deux processeurs : rien n'est refabriqué), puis le chart est emballé (`helm package`) et publié en OCI (`helm push`), avec le compte et le jeton de dhi.io. Les dépôts Docker Hub sont publics, créés au premier envoi. Les snapshots ne vont pas sur Docker Hub.
+**Docker Hub** (job « Docker Hub » de `release.yml`, après les images) : **un seul dépôt pour toute l'application**, `florentcoulon/suivi-delivery` (choix de l'utilisateur : une application, plusieurs images ; et Docker Scout gratuit ne suit qu'un dépôt). Les cinq images de la version y sont **recopiées** depuis ghcr.io sous `<partie>-<version>` (`backend-0.7.0`…) (`docker buildx imagetools create`, avec leurs deux processeurs : rien n'est refabriqué), puis le chart est emballé (`helm package`) et publié en OCI (`helm push`) sous `<version>` : Helm range toujours un chart dans le dépôt qui porte son nom. Compte et jeton de dhi.io. Dépôt public. Les snapshots ne vont pas sur Docker Hub. Le chart prend ses images sur ghcr.io (`images.registry`) : celles de Docker Hub servent au `docker pull`, pas au chart. La 0.6.0 a été publiée avec l'ancien rangement, un dépôt par image (`florentcoulon/suivi-delivery-backend:0.6.0`…).
 
 **Le chart Helm n'est pas publié sur GitHub** (décision de l'utilisateur) : il reste vérifié à chaque push (chart-verifier, § 2), et s'installe depuis Docker Hub ou depuis le dépôt Git, à l'étiquette de la version. Les versions déjà publiées dans `oci://ghcr.io/florent-coulon-deville/charts/suivi-delivery` y restent. Le paquet ne contient que les modèles de réglages (`.helmignore` écarte `values-secret*.yaml` et `values-crc.yaml`).
 
