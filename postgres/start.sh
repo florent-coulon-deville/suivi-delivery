@@ -12,12 +12,16 @@
 set -Eeuo pipefail
 
 # ---------- 1. L'utilisateur du conteneur ----------
-# /etc/passwd (la liste des utilisateurs du système) renvoie vers /tmp/passwd, préparé à la
-# fabrication : le reste du système est en lecture seule sur un cluster. On y recopie la liste de
-# l'image, plus l'utilisateur du conteneur s'il n'y est pas (utilisateur au hasard d'OpenShift).
-cp /etc/passwd.image /tmp/passwd
+# /etc/passwd (la liste des utilisateurs du système) renvoie vers /tmp/passwd : le reste du
+# système est en lecture seule sur un cluster. L'image livre /tmp/passwd déjà rempli (la liste de
+# l'image) : rien à faire si l'utilisateur du conteneur y est (70, ou ajouté par Podman). Sinon
+# (cluster : /tmp vide ; OpenShift : utilisateur au hasard), on écrit la liste de l'image, plus
+# cet utilisateur s'il n'y est toujours pas.
 if ! whoami >/dev/null 2>&1; then
-    echo "postgres-$(id -u):x:$(id -u):$(id -g):PostgreSQL:/var/lib/postgresql:/sbin/nologin" >> /tmp/passwd
+    cat /etc/passwd.image > /tmp/passwd
+    if ! whoami >/dev/null 2>&1; then
+        echo "postgres-$(id -u):x:$(id -u):$(id -g):PostgreSQL:/var/lib/postgresql:/sbin/nologin" >> /tmp/passwd
+    fi
 fi
 
 # ---------- 2. Premier démarrage ----------
