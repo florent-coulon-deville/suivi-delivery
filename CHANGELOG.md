@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/florent-coulon-deville/suivi-delivery/compare/v0.7.0...v0.8.0) (2026-10-23)
+
+
+### Nouveautés
+
+* Add Dependabot configuration for security updates and adjust do… ([#11](https://github.com/florent-coulon-deville/suivi-delivery/issues/11)) ([d71fdc0](https://github.com/florent-coulon-deville/suivi-delivery/commit/d71fdc02b249178656dc15a5c7691492802a3be4))
+
 ## [0.7.0](https://github.com/florent-coulon-deville/suivi-delivery/compare/v0.6.0...v0.7.0) (2026-10-23)
 
 
